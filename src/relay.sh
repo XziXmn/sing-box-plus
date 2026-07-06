@@ -233,11 +233,17 @@ relay_write_chain_config() {
 
     relay_file="$is_conf_dir/${relay_config_prefix}${relay_name}.json"
     [[ -f "$relay_file" ]] && err "配置已存在: $(basename "$relay_file")"
+    relay_inbound_tag="relay-in-$relay_name"
+    relay_outbound_tag="relay-target-$relay_name"
 
     jq \
         --argjson inbound "$relay_inbound_json" \
         --argjson outbound "$relay_outbound_json" \
-        '{inbounds:[$inbound],outbounds:[$outbound],route:{final:$outbound.tag}}' <<<'{}' >"$relay_file"
+        --arg inbound_tag "$relay_inbound_tag" \
+        --arg outbound_tag "$relay_outbound_tag" \
+        '($inbound | .tag = $inbound_tag) as $in
+        | ($outbound | .tag = $outbound_tag) as $out
+        | {inbounds:[$in],outbounds:[$out],route:{rules:[{inbound:[$inbound_tag],action:"route",outbound:$outbound_tag}]}}' <<<'{}' >"$relay_file"
 
     "$is_core_bin" check -c "$is_config_json" -C "$is_conf_dir" || {
         rm -f "$relay_file"
