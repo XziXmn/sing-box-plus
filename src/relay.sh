@@ -86,7 +86,8 @@ relay_add_chain_menu() {
     ask string relay_target_link "请粘贴目标代理链接:"
     [[ -z "$relay_target_link" ]] && err "目标代理链接不能为空."
 
-    ask string relay_listen_port "本地监听端口，回车随机:"
+    echo -ne "本地监听端口，回车随机:"
+    read -r relay_listen_port
     if [[ -z "$relay_listen_port" ]]; then
         get_port
         relay_listen_port="$tmp_port"
