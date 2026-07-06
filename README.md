@@ -78,7 +78,7 @@ wget -O install-beta.sh https://raw.githubusercontent.com/XziXmn/sing-box-plus/m
 bash install-beta.sh
 ```
 
-稳定版安装包会内置 `relay-parser` 预编译文件，不需要在服务器安装 Go。Beta 源码版不内置预编译文件，如果要使用链式转发解析目标链接，需要服务器已安装 Go 1.21+。
+稳定版安装包会内置 `relay-parser` 预编译文件，不需要在服务器安装 Go。Beta 源码版不内置预编译文件，安装或首次使用链式转发时会自动下载对应架构的独立 `relay-parser`。
 
 也可以克隆仓库后使用本地安装：
 
@@ -188,7 +188,7 @@ sing-box uninstall        # 卸载脚本
 使用：`sing-box help`
 
 ```
-sing-box-plus script v0.1.4 personal modified version
+sing-box-plus script v0.1.5 personal modified version
 Usage: sing-box [options]... [args]...
 
 基本:

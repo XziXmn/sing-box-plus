@@ -50,6 +50,9 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: sing-box-plus ${{ steps.version.outputs.version }}
-          files: ${{ runner.temp }}/code.tar.gz
+          files: |
+            ${{ runner.temp }}/code.tar.gz
+            bin/relay-parser-linux-amd64
+            bin/relay-parser-linux-arm64
           overwrite_files: true
           make_latest: true

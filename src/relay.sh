@@ -133,13 +133,22 @@ relay_ensure_parser() {
         return
     fi
 
+    relay_parser_url="https://github.com/${is_sh_repo}/releases/latest/download/relay-parser-linux-${is_arch}"
+    mkdir -p "$is_core_dir/bin"
+    msg "下载 relay-parser > $relay_parser_url"
+    if _wget -t 3 -q -O "$relay_parser_bin" "$relay_parser_url"; then
+        chmod +x "$relay_parser_bin"
+        return
+    fi
+    rm -f "$relay_parser_bin"
+
     if relay_go_version_ok && [[ -d "$is_sh_dir/cmd/relay-parser" ]]; then
         mkdir -p "$is_core_dir/bin"
         (cd "$is_sh_dir/cmd/relay-parser" && go build -o "$relay_parser_bin" .) || err "relay-parser 构建失败."
         return
     fi
 
-    err "缺少 relay-parser. 稳定版安装包会内置预编译文件; 源码/Beta 安装请先安装 Go 1.21+ 后重试."
+    err "缺少 relay-parser，且无法下载预编译文件. 请稍后重试或手动下载: $relay_parser_url"
 }
 
 relay_ensure_tls_pair() {

@@ -379,8 +379,17 @@ restore_migrated_config() {
 
 install_relay_parser() {
     local bundled_parser=$is_sh_dir/bin/relay-parser-linux-$is_arch
-    [[ -f $bundled_parser ]] || return
-    cp -f $bundled_parser $relay_parser_bin
+    mkdir -p $is_core_dir/bin
+    if [[ -f $bundled_parser ]]; then
+        cp -f $bundled_parser $relay_parser_bin
+    else
+        msg warn "下载 relay-parser > https://github.com/${is_sh_repo}/releases/latest/download/relay-parser-linux-${is_arch}"
+        _wget -t 3 -q -O $relay_parser_bin "https://github.com/${is_sh_repo}/releases/latest/download/relay-parser-linux-${is_arch}" || {
+            rm -f $relay_parser_bin
+            msg warn "下载 relay-parser 失败，链式转发将在首次使用时再次尝试."
+            return
+        }
+    fi
     chmod +x $relay_parser_bin
     msg ok "已安装 relay-parser."
 }
