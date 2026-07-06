@@ -1,31 +1,41 @@
-name: Main
+name: Release
 
-on: push
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: get ver
+
+      - name: get version
+        id: version
         run: |
-          echo "$(cat *.sh | grep is_sh_ver=)" >> $GITHUB_ENV
-          echo "old=$(git tag | tail -n1)" >> $GITHUB_ENV
-      # - name: test
-      #   if: env.is_sh_ver == env.old 
-      #   run: |
-      #     echo not found new version.
-      #     exit 1
-      - name: tar
-        run: tar zcvf code.tar.gz ./*
+          version=$(grep -E '^is_sh_ver=' sing-box.sh | cut -d= -f2)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: package
+        run: |
+          tar \
+            --exclude='./.git' \
+            --exclude='./code.tar.gz' \
+            -czf code.tar.gz .
+
       - name: release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: sing-box-plus ${{ steps.version.outputs.version }}
           files: code.tar.gz
-          tag_name: ${{ env.is_sh_ver }}
+          overwrite_files: true
+          make_latest: true
