@@ -173,7 +173,7 @@ sing-box uninstall        # 卸载脚本
 使用：`sing-box help`
 
 ```
-sing-box-plus script v1.18 personal modified version
+sing-box-plus script v0.1.0 personal modified version
 Usage: sing-box [options]... [args]...
 
 基本:
