@@ -1,7 +1,7 @@
 #!/bin/bash
 
-author=233boy
-# github=https://github.com/233boy/sing-box
+author=XziXmn
+# github=https://github.com/XziXmn/sing-box-plus.git
 
 # bash fonts colors
 red='\e[31m'
@@ -70,7 +70,11 @@ is_conf_dir=$is_core_dir/conf
 is_log_dir=/var/log/$is_core
 is_sh_bin=/usr/local/bin/$is_core
 is_sh_dir=$is_core_dir/sh
-is_sh_repo=$author/$is_core
+is_sh_repo=XziXmn/sing-box-plus
+is_caddy_dir=/etc/caddy
+is_caddyfile=$is_caddy_dir/Caddyfile
+is_caddy_conf=$is_caddy_dir/sing-box-plus
+is_old_caddy_conf=$is_caddy_dir/233boy
 is_pkg="wget tar bash"
 # Alpine: gcompat provides glibc compatibility for prebuilt binaries
 [[ $cmd =~ apk ]] && is_pkg="$is_pkg gcompat jq"
@@ -126,9 +130,10 @@ msg() {
 
 # show help msg
 show_help() {
-    echo -e "Usage: $0 [-f xxx | -l | -p xxx | -v xxx | -h]"
+    echo -e "Usage: $0 [-f xxx | -l | -m | -p xxx | -v xxx | -h]"
     echo -e "  -f, --core-file <path>          自定义 $is_core_name 文件路径, e.g., -f /root/$is_core-linux-amd64.tar.gz"
     echo -e "  -l, --local-install             本地获取安装脚本, 使用当前目录"
+    echo -e "  -m, --migrate                   迁移已安装脚本, 保留配置并替换脚本文件"
     echo -e "  -p, --proxy <addr>              使用代理下载, e.g., -p http://127.0.0.1:2333"
     echo -e "  -v, --core-version <ver>        自定义 $is_core_name 版本, e.g., -v v1.8.13"
     echo -e "  -h, --help                      显示此帮助界面\n"
@@ -269,6 +274,10 @@ pass_args() {
             local_install=1
             shift 1
             ;;
+        -m | --migrate)
+            is_migrate=1
+            shift 1
+            ;;
         -p | --proxy)
             [[ -z $2 ]] && {
                 err "($1) 缺少必需参数, 正确使用示例: [$1 http://127.0.0.1:2333 or -p socks5://127.0.0.1:2333]"
@@ -295,6 +304,101 @@ pass_args() {
     [[ $is_core_ver && $is_core_file ]] && {
         err "无法同时自定义 ${is_core_name} 版本和 ${is_core_name} 文件."
     }
+    [[ $is_migrate && $is_core_file ]] && {
+        err "迁移模式不支持同时自定义 ${is_core_name} 文件."
+    }
+    [[ $is_migrate && $is_core_ver ]] && {
+        err "迁移模式不支持同时自定义 ${is_core_name} 版本."
+    }
+}
+
+backup_existing_install() {
+    [[ -f $is_sh_bin && -d $is_core_dir/bin && -d $is_sh_dir && -d $is_conf_dir ]] || {
+        err "未检测到可迁移的已安装脚本; 全新安装请不要使用 --migrate."
+    }
+
+    backup_dir=/root/sing-box-plus-backup-$(date +%Y%m%d-%H%M%S)
+    mkdir -p $backup_dir
+    [[ -d $is_sh_dir ]] && cp -a $is_sh_dir $backup_dir/sh
+    [[ -f $is_config_json ]] && cp -a $is_config_json $backup_dir/config.json
+    [[ -d $is_conf_dir ]] && cp -a $is_conf_dir $backup_dir/conf
+    [[ -f $is_core_dir/bin/tls.cer ]] && cp -a $is_core_dir/bin/tls.cer $backup_dir/tls.cer
+    [[ -f $is_core_dir/bin/tls.key ]] && cp -a $is_core_dir/bin/tls.key $backup_dir/tls.key
+    if [[ -d $is_caddy_conf ]]; then
+        cp -a $is_caddy_conf $backup_dir/caddy-conf
+    elif [[ -d $is_old_caddy_conf ]]; then
+        cp -a $is_old_caddy_conf $backup_dir/caddy-conf
+    fi
+    msg warn "已备份现有脚本与配置到 > $backup_dir"
+}
+
+remove_existing_install() {
+    if [[ $is_systemd ]]; then
+        systemctl stop $is_core &>/dev/null || true
+        systemctl disable $is_core &>/dev/null || true
+        rm -f /lib/systemd/system/$is_core.service /usr/lib/systemd/system/$is_core.service
+        systemctl daemon-reload &>/dev/null || true
+    elif [[ $is_openrc ]]; then
+        rc-service $is_core stop &>/dev/null || true
+        rc-update del $is_core default &>/dev/null || true
+        rm -f /etc/init.d/$is_core
+    fi
+    rm -rf $is_core_dir $is_sh_bin ${is_sh_bin/$is_core/sb} /usr/local/bin/sbb
+    sed -i "/$is_core/d" /root/.bashrc 2>/dev/null || true
+}
+
+prepare_migrate_install() {
+    backup_existing_install
+    is_remove_existing=1
+    is_restore_migrate=1
+}
+
+prepare_replace_install() {
+    backup_existing_install
+    is_remove_existing=1
+}
+
+restore_migrated_config() {
+    [[ $backup_dir ]] || err "缺少迁移备份目录."
+
+    rm -rf $is_conf_dir
+    mkdir -p $is_conf_dir
+    [[ -d $backup_dir/conf ]] && cp -a $backup_dir/conf/. $is_conf_dir/
+    [[ -f $backup_dir/config.json ]] && cp -a $backup_dir/config.json $is_config_json
+    [[ -f $backup_dir/tls.cer ]] && cp -a $backup_dir/tls.cer $is_core_dir/bin/tls.cer
+    [[ -f $backup_dir/tls.key ]] && cp -a $backup_dir/tls.key $is_core_dir/bin/tls.key
+    [[ -d $backup_dir/caddy-conf ]] && {
+        mkdir -p $is_caddy_conf
+        cp -a $backup_dir/caddy-conf/. $is_caddy_conf/
+    }
+    [[ -f $is_caddyfile ]] && sed -i "s#$is_old_caddy_conf#$is_caddy_conf#g" $is_caddyfile
+
+    msg ok "已恢复迁移配置."
+}
+
+ask_migrate_existing_install() {
+    warn "检测到 sing-box 脚本已安装."
+    echo -ne "是否迁移现有配置到 sing-box-plus? [y/N]: "
+    read -r migrate_confirm
+    case $migrate_confirm in
+    y | Y | yes | YES)
+        prepare_migrate_install
+        ;;
+    *)
+        warn "未迁移配置时, 当前 sing-box 脚本会与新脚本冲突."
+        echo -ne "是否删除已安装脚本并全新安装 sing-box-plus? 现有配置会先备份到 /root. [y/N]: "
+        read -r replace_confirm
+        case $replace_confirm in
+        y | Y | yes | YES)
+            prepare_replace_install
+            ;;
+        *)
+            msg warn "已取消安装."
+            exit_and_del_tmpdir ok
+            ;;
+        esac
+        ;;
+    esac
 }
 
 # exit and remove tmpdir
@@ -307,24 +411,27 @@ exit_and_del_tmpdir() {
         echo
         exit 1
     }
-    exit
+    exit 0
 }
 
 # main
 main() {
+    # check parameters
+    [[ $# -gt 0 ]] && pass_args $@
 
     # check old version
     [[ -f $is_sh_bin && -d $is_core_dir/bin && -d $is_sh_dir && -d $is_conf_dir ]] && {
-        err "检测到脚本已安装, 如需重装请使用${green} ${is_core} reinstall ${none}命令."
+        [[ $is_migrate ]] && {
+            prepare_migrate_install
+        } || {
+            ask_migrate_existing_install
+        }
     }
-
-    # check parameters
-    [[ $# -gt 0 ]] && pass_args $@
 
     # show welcome msg
     clear
     echo
-    echo "........... $is_core_name script by $author .........."
+    echo "........... $is_core_name-plus script .........."
     echo
 
     # start installing...
@@ -401,6 +508,8 @@ main() {
         exit_and_del_tmpdir
     }
 
+    [[ $is_remove_existing ]] && remove_existing_install
+
     # create sh dir...
     mkdir -p $is_sh_dir
 
@@ -427,12 +536,13 @@ main() {
     # core command
     ln -sf $is_sh_dir/$is_core.sh $is_sh_bin
     ln -sf $is_sh_dir/$is_core.sh ${is_sh_bin/$is_core/sb}
+    ln -sf $is_sh_dir/$is_core.sh /usr/local/bin/sbb
 
     # jq
     [[ $jq_not_found ]] && mv -f $is_jq_ok /usr/bin/jq
 
     # chmod
-    chmod +x $is_core_bin $is_sh_bin /usr/bin/jq ${is_sh_bin/$is_core/sb}
+    chmod +x $is_core_bin $is_sh_bin /usr/bin/jq ${is_sh_bin/$is_core/sb} /usr/local/bin/sbb
 
     # create log dir
     mkdir -p $is_log_dir
@@ -449,6 +559,14 @@ main() {
     mkdir -p $is_conf_dir
 
     load core.sh
+    if [[ $is_restore_migrate ]]; then
+        restore_migrated_config
+        manage restart &
+        wait
+        msg ok "迁移完成. 已卸载原脚本并安装 sing-box-plus."
+        exit_and_del_tmpdir ok
+    fi
+
     # create a reality config
     add reality
     # wait for background tasks (e.g., OpenRC service start)

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-author=233boy
-# github=https://github.com/233boy/sing-box
+author=XziXmn
+# github=https://github.com/XziXmn/sing-box-plus.git
 
 # bash fonts colors
 red='\e[31m'
@@ -83,14 +83,14 @@ is_conf_dir=$is_core_dir/conf
 is_log_dir=/var/log/$is_core
 is_sh_bin=/usr/local/bin/$is_core
 is_sh_dir=$is_core_dir/sh
-is_sh_repo=$author/$is_core
+is_sh_repo=XziXmn/sing-box-plus
 is_pkg="wget unzip tar qrencode bash"
 is_config_json=$is_core_dir/config.json
 is_caddy_bin=/usr/local/bin/caddy
 is_caddy_dir=/etc/caddy
 is_caddy_repo=caddyserver/caddy
 is_caddyfile=$is_caddy_dir/Caddyfile
-is_caddy_conf=$is_caddy_dir/$author
+is_caddy_conf=$is_caddy_dir/sing-box-plus
 is_systemd=$(type -P systemctl)
 is_openrc=$(type -P rc-service)
 if [[ $is_systemd ]]; then
@@ -143,6 +143,9 @@ if [[ -f $is_caddy_bin && -d $is_caddy_dir && $is_caddy_service ]]; then
     fi
 fi
 
+load bbr.sh
+_auto_enable_bbr
 load core.sh
+[[ ! $args && "$is_cmd_name" == "sbb" ]] && args=relay
 [[ ! $args ]] && args=main
 main $args

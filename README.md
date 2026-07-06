@@ -1,8 +1,17 @@
 # 介绍
 
-最好用的 sing-box 一键安装脚本 & 管理脚本
+sing-box-plus 是个人修改版本，用于 sing-box 一键安装、管理与链式转发。
 
 # 特点
+
+## 当前版本特性
+
+- 新增链式转发管理，可通过 `sb` 主菜单、`sing-box relay` 或 `sbb` 进入
+- 支持粘贴目标代理链接，自动生成本机入站到目标出站的链式配置
+- 链式转发配置文件使用 `relay-chain-*.json` 命名，便于区分普通节点
+- 自动展示当前链式中转配置和已有普通节点
+
+## 基础能力
 
 - 快速安装
 - 无敌好用
@@ -11,6 +20,8 @@
 - 简化所有流程
 - 兼容 sing-box 命令
 - 强大的快捷参数
+- 支持链式转发管理
+- 支持 `sbb` 快捷入口
 - 支持所有常用协议
 - 一键添加 VLESS-REALITY (默认)
 - 一键添加 TUIC
@@ -31,7 +42,7 @@
 
 设计理念为：**高效率，超快速，极易用**
 
-脚本基于作者的自身使用需求，以 **多配置同时运行** 为核心设计
+脚本以 **多配置同时运行** 为核心设计
 
 并且专门优化了，添加、更改、查看、删除、这四项常用功能
 
@@ -43,14 +54,126 @@
 
 # 文档
 
-安装及使用：https://233boy.com/sing-box/sing-box-script/
+本仓库：https://github.com/XziXmn/sing-box-plus
+
+# 安装
+
+## 全新安装
+
+使用 root 用户执行：
+
+```bash
+wget -O install.sh https://raw.githubusercontent.com/XziXmn/sing-box-plus/main/install.sh
+bash install.sh
+```
+
+也可以克隆仓库后使用本地安装，适合测试当前仓库代码：
+
+```bash
+git clone https://github.com/XziXmn/sing-box-plus.git
+cd sing-box-plus
+bash install.sh --local-install
+```
+
+安装完成后会创建以下命令：
+
+```bash
+sing-box
+sb
+sbb
+```
+
+## 已安装原版脚本的机器
+
+当前安装脚本不会静默覆盖已安装的原版脚本。
+
+如果机器上已经存在 `/etc/sing-box`、`/usr/local/bin/sing-box`、脚本目录或配置目录，直接执行安装脚本时会先提示是否迁移现有配置到 sing-box-plus。
+
+确认迁移后，脚本会保留现有配置并替换脚本文件：
+
+```bash
+cp -a /etc/sing-box /root/sing-box-backup-$(date +%Y%m%d-%H%M%S)
+wget -O install.sh https://raw.githubusercontent.com/XziXmn/sing-box-plus/main/install.sh
+bash install.sh
+```
+
+如果选择不迁移配置，脚本会继续提示当前 sing-box 脚本与新脚本冲突，询问是否删除已安装脚本并全新安装 sing-box-plus。确认后会先把旧安装备份到 `/root/sing-box-plus-backup-*`，再删除旧脚本并安装新脚本。
+
+也可以使用非交互迁移模式，直接迁移配置：
+
+```bash
+bash install.sh --migrate
+```
+
+迁移会：
+
+- 保留现有 `/etc/sing-box/conf` 配置
+- 保留现有 `/etc/sing-box/config.json`
+- 备份旧安装到 `/root/sing-box-plus-backup-*`
+- 卸载原 sing-box 脚本
+- 安装 sing-box-plus 脚本
+- 重建 `sing-box`、`sb`、`sbb` 命令入口
+- 尝试把旧 Caddy 配置目录 `/etc/caddy/233boy` 迁移到 `/etc/caddy/sing-box-plus`
+
+如果不想迁移，也可以先备份配置，再卸载原脚本后全新安装。
+
+# 使用教程
+
+## 主菜单
+
+```bash
+sb
+```
+
+主菜单会展示当前普通代理配置和链式代理配置，并提供添加、修改、删除、更新、链式转发等入口。
+
+## 链式转发
+
+从主菜单选择 `链式转发`，或直接执行：
+
+```bash
+sbb
+```
+
+也可以使用完整命令：
+
+```bash
+sing-box relay
+```
+
+进入链式转发后：
+
+1. 选择 `添加配置`
+2. 选择本机入站协议
+3. 粘贴目标代理链接
+4. 输入本地监听端口，或直接回车随机
+5. 按提示放行防火墙和云服务器安全组端口
+
+链式转发配置会保存为：
+
+```bash
+/etc/sing-box/conf/relay-chain-*.json
+```
+
+## 常用命令
+
+```bash
+sing-box add              # 添加普通代理配置
+sing-box info             # 查看配置
+sing-box url <name>       # 查看节点 URL
+sing-box qr <name>        # 查看二维码
+sing-box status           # 查看运行状态
+sing-box restart          # 重启 sing-box
+sing-box update.sh        # 更新脚本
+sing-box uninstall        # 卸载脚本
+```
 
 # 帮助
 
 使用：`sing-box help`
 
 ```
-sing-box script v1.0 by 233boy
+sing-box-plus script v1.18 personal modified version
 Usage: sing-box [options]... [args]...
 
 基本:
@@ -91,6 +214,8 @@ Usage: sing-box [options]... [args]...
    import                                          导入 sing-box/v2ray 脚本配置
 
 管理:
+   relay                                           链式转发管理
+   sbb                                             链式转发管理
    un, uninstall                                   卸载
    u, update [core | sh | caddy] [ver]             更新
    U, update.sh                                    更新脚本
@@ -110,6 +235,6 @@ Usage: sing-box [options]... [args]...
    h, help                                         显示此帮助界面
 
 谨慎使用 del, ddel, 此选项会直接删除配置; 无需确认
-反馈问题) https://github.com/233boy/sing-box/issues
-文档(doc) https://233boy.com/sing-box/sing-box-script/
+反馈问题) https://github.com/XziXmn/sing-box-plus/issues
+文档(doc) https://github.com/XziXmn/sing-box-plus
 ```
