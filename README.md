@@ -78,6 +78,8 @@ wget -O install-beta.sh https://raw.githubusercontent.com/XziXmn/sing-box-plus/m
 bash install-beta.sh
 ```
 
+稳定版安装包会内置 `relay-parser` 预编译文件，不需要在服务器安装 Go。Beta 源码版不内置预编译文件，如果要使用链式转发解析目标链接，需要服务器已安装 Go 1.21+。
+
 也可以克隆仓库后使用本地安装：
 
 ```bash

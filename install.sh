@@ -71,6 +71,7 @@ is_log_dir=/var/log/$is_core
 is_sh_bin=/usr/local/bin/$is_core
 is_sh_dir=$is_core_dir/sh
 is_sh_repo=XziXmn/sing-box-plus
+relay_parser_bin=$is_core_dir/bin/relay-parser
 is_caddy_dir=/etc/caddy
 is_caddyfile=$is_caddy_dir/Caddyfile
 is_caddy_conf=$is_caddy_dir/sing-box-plus
@@ -376,6 +377,14 @@ restore_migrated_config() {
     msg ok "已恢复迁移配置."
 }
 
+install_relay_parser() {
+    local bundled_parser=$is_sh_dir/bin/relay-parser-linux-$is_arch
+    [[ -f $bundled_parser ]] || return
+    cp -f $bundled_parser $relay_parser_bin
+    chmod +x $relay_parser_bin
+    msg ok "已安装 relay-parser."
+}
+
 is_installed_plus() {
     [[ -f $is_sh_dir/src/init.sh ]] && grep -q "is_sh_repo=XziXmn/sing-box-plus" $is_sh_dir/src/init.sh
 }
@@ -405,6 +414,7 @@ update_plus_install() {
     ln -sf $is_sh_dir/$is_core.sh ${is_sh_bin/$is_core/sb}
     ln -sf $is_sh_dir/$is_core.sh /usr/local/bin/sbb
     chmod +x $is_sh_bin ${is_sh_bin/$is_core/sb} /usr/local/bin/sbb
+    install_relay_parser
     msg ok "sing-box-plus 脚本更新完成."
     exit_and_del_tmpdir ok
 }
@@ -577,6 +587,7 @@ main() {
 
     # chmod
     chmod +x $is_core_bin $is_sh_bin /usr/bin/jq ${is_sh_bin/$is_core/sb} /usr/local/bin/sbb
+    install_relay_parser
 
     # create log dir
     mkdir -p $is_log_dir

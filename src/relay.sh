@@ -111,33 +111,6 @@ relay_add_chain_menu() {
     relay_write_chain_config
 }
 
-relay_ensure_go() {
-    relay_go_version_ok && return
-
-    if ! command -v go >/dev/null 2>&1; then
-        warn "缺少 go，正在尝试安装以构建 relay-parser."
-        case "$cmd" in
-        *apt-get*)
-            $cmd update -y && $cmd install -y golang-go
-            ;;
-        *yum*)
-            $cmd install -y golang
-            ;;
-        *zypper*)
-            $cmd --non-interactive install go
-            ;;
-        *apk*)
-            $cmd add go
-            ;;
-        esac
-    fi
-
-    relay_go_version_ok && return
-    relay_install_official_go
-
-    relay_go_version_ok || err "go 安装失败，无法构建 relay-parser."
-}
-
 relay_go_version_ok() {
     command -v go >/dev/null 2>&1 || return 1
     relay_go_version=$(go env GOVERSION 2>/dev/null | sed 's/^go//')
@@ -149,25 +122,24 @@ relay_go_version_ok() {
     [[ "$relay_go_major" -gt 1 || "$relay_go_major" -eq 1 && "$relay_go_minor" -ge 21 ]]
 }
 
-relay_install_official_go() {
-    warn "系统 go 版本过旧，正在安装官方 Go 1.26.4 到 /usr/local/go-relay."
-    relay_go_url="https://go.dev/dl/go1.26.4.linux-${is_arch}.tar.gz"
-    relay_go_tmp="/tmp/go-relay-${is_arch}.tar.gz"
-    _wget -q -O "$relay_go_tmp" "$relay_go_url" || err "下载官方 go 失败: $relay_go_url"
-    rm -rf /usr/local/go-relay
-    mkdir -p /usr/local/go-relay
-    tar zxf "$relay_go_tmp" --strip-components 1 -C /usr/local/go-relay || err "解压官方 go 失败."
-    rm -f "$relay_go_tmp"
-    export PATH="/usr/local/go-relay/bin:$PATH"
-}
-
 relay_ensure_parser() {
     [[ -x "$relay_parser_bin" ]] && return
 
-    relay_ensure_go
-    [[ -d "$is_sh_dir/cmd/relay-parser" ]] || err "缺少 relay-parser 源码目录."
-    mkdir -p "$is_core_dir/bin"
-    (cd "$is_sh_dir/cmd/relay-parser" && go build -o "$relay_parser_bin" .) || err "relay-parser 构建失败."
+    relay_bundled_parser="$is_sh_dir/bin/relay-parser-linux-$is_arch"
+    if [[ -f "$relay_bundled_parser" ]]; then
+        mkdir -p "$is_core_dir/bin"
+        cp -f "$relay_bundled_parser" "$relay_parser_bin"
+        chmod +x "$relay_parser_bin"
+        return
+    fi
+
+    if relay_go_version_ok && [[ -d "$is_sh_dir/cmd/relay-parser" ]]; then
+        mkdir -p "$is_core_dir/bin"
+        (cd "$is_sh_dir/cmd/relay-parser" && go build -o "$relay_parser_bin" .) || err "relay-parser 构建失败."
+        return
+    fi
+
+    err "缺少 relay-parser. 稳定版安装包会内置预编译文件; 源码/Beta 安装请先安装 Go 1.21+ 后重试."
 }
 
 relay_ensure_tls_pair() {
