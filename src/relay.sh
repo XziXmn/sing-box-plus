@@ -271,16 +271,20 @@ relay_print_client_url() {
 }
 
 relay_delete_chain_config() {
-    relay_show_configs
     if ! ls "$is_conf_dir"/${relay_config_prefix}*.json >/dev/null 2>&1; then
+        msg "暂无链式转发配置."
         return
     fi
 
-    ask string relay_delete_name "请输入要删除的配置文件名:"
-    [[ "$relay_delete_name" != ${relay_config_prefix}*.json ]] && err "只能删除 ${relay_config_prefix}*.json 配置."
+    relay_delete_list=()
+    msg
+    section_title "删除链式转发配置"
+    for relay_file in "$is_conf_dir"/${relay_config_prefix}*.json; do
+        relay_delete_list+=("$(basename "$relay_file")")
+    done
+    ask list relay_delete_name "${relay_delete_list[@]}"
 
     relay_delete_path="$is_conf_dir/$relay_delete_name"
-    [[ ! -f "$relay_delete_path" ]] && err "配置不存在: $relay_delete_name"
 
     rm -f "$relay_delete_path"
     "$is_core_bin" check -c "$is_config_json" -C "$is_conf_dir" || err "sing-box 配置检查失败，请检查剩余配置."
