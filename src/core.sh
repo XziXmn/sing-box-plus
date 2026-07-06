@@ -693,7 +693,7 @@ del() {
             msg "\n是否删除配置文件?: $is_config_file"
             pause
         fi
-        rm -rf $is_conf_dir/"$is_config_file"
+        rm -rf $is_conf_dir/"$is_config_file" || err "删除配置文件失败: $is_config_file"
         [[ ! $is_new_json ]] && manage restart &
         [[ ! $is_no_del_msg ]] && _green "\n已删除: $is_config_file\n"
 

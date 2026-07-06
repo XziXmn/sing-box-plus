@@ -250,8 +250,9 @@ relay_write_chain_config() {
         err "sing-box 配置检查失败，已回滚链式转发配置."
     }
 
-    manage restart
     relay_print_client_url
+    msg "正在重启 $is_core_name 应用配置；如果当前连接经由 $is_core_name，可能会短暂断开."
+    manage restart
 }
 
 relay_print_client_url() {
@@ -275,19 +276,5 @@ relay_delete_chain_config() {
         msg "暂无链式转发配置."
         return
     fi
-
-    relay_delete_list=()
-    msg
-    section_title "删除链式转发配置"
-    for relay_file in "$is_conf_dir"/${relay_config_prefix}*.json; do
-        relay_delete_list+=("$(basename "$relay_file")")
-    done
-    ask list relay_delete_name "${relay_delete_list[@]}"
-
-    relay_delete_path="$is_conf_dir/$relay_delete_name"
-
-    rm -f "$relay_delete_path"
-    "$is_core_bin" check -c "$is_config_json" -C "$is_conf_dir" || err "sing-box 配置检查失败，请检查剩余配置."
-    manage restart
-    msg "已删除链式转发配置: $relay_delete_name"
+    del "$relay_config_prefix"
 }
