@@ -2,7 +2,8 @@ relay_config_prefix=relay-chain-
 relay_parser_bin="$is_core_dir/bin/relay-parser"
 
 relay_menu() {
-    msg "\n------------- 链式转发 -------------"
+    msg
+    section_title "链式转发"
     msg "1. 添加配置"
     msg "2. 删除配置"
     msg "0. 退出"
@@ -25,10 +26,11 @@ relay_menu() {
 }
 
 relay_show_configs() {
-    msg "\n------------- 当前链式代理配置 -------------"
+    msg
+    section_title "当前链式代理配置"
     if ! ls "$is_conf_dir"/${relay_config_prefix}*.json >/dev/null 2>&1; then
         msg "暂无链式中转配置."
-        msg "--------------------------------------------"
+        line_sep
         return
     fi
 
@@ -41,14 +43,15 @@ relay_show_configs() {
         relay_target_port=$(jq -r '.outbounds[0].server_port // "unknown"' "$relay_file" 2>/dev/null)
         msg "$relay_name | 入站:$relay_type:$relay_port -> 出站:$relay_target_type:$relay_target:$relay_target_port"
     done
-    msg "--------------------------------------------"
+    line_sep
 }
 
 relay_show_existing_nodes() {
-    msg "\n------------- 当前普通代理配置 -------------"
+    msg
+    section_title "当前普通代理配置"
     if ! ls "$is_conf_dir"/*.json >/dev/null 2>&1; then
         msg "暂无普通节点配置."
-        msg "------------------------------------------"
+        line_sep
         return
     fi
 
@@ -63,7 +66,7 @@ relay_show_existing_nodes() {
     done
 
     [[ ! "$relay_has_node" ]] && msg "暂无普通节点配置."
-    msg "------------------------------------------"
+    line_sep
 }
 
 relay_add_chain_menu() {
@@ -265,7 +268,8 @@ relay_write_chain_config() {
 
 relay_print_client_url() {
     get_ip
-    msg "\n------------- relay-$relay_name 节点信息 -------------"
+    msg
+    section_title "relay-$relay_name 节点信息"
     msg "协议: $relay_inbound_protocol"
     msg "地址: $ip"
     msg "端口: $relay_listen_port"

@@ -122,6 +122,16 @@ msg_ul() {
     echo -e "\e[4m$@\e[0m"
 }
 
+line_sep() {
+    msg "----------------------------------------"
+}
+
+section_title() {
+    line_sep
+    msg "$1"
+    line_sep
+}
+
 # pause
 pause() {
     echo
@@ -1111,7 +1121,7 @@ get() {
             is_json_data=$(jq '(.inbounds[0]|.type,.listen_port,(.users[0]|.uuid,.password,.username),.method,.password,.override_port,.override_address,(.transport|.type,.path,.headers.host),(.tls|.server_name,.reality.private_key)),(.outbounds[1].tag)' <<<$is_json_str)
             [[ $? != 0 ]] && err "无法读取此文件: $is_config_file"
             is_up_var_set=(null is_protocol port uuid password username ss_method ss_password door_port door_addr net_type path host is_servername is_private_key is_public_key)
-            [[ $is_debug ]] && msg "\n------------- debug: $is_config_file -------------"
+            [[ $is_debug ]] && msg && section_title "debug: $is_config_file"
             i=0
             for v in $(sed 's/""/null/g;s/"//g' <<<"$is_json_data"); do
                 ((i++))
@@ -1468,7 +1478,7 @@ info() {
         ;;
     esac
     [[ $is_dont_show_info || $is_gen || $is_dont_auto_exit ]] && return # dont show info
-    msg "-------------- $is_config_name -------------"
+    section_title "$is_config_name"
     for ((i = 0; i < ${#is_info_show[@]}; i++)); do
         a=${info_list[${is_info_show[$i]}]}
         if [[ ${#a} -eq 11 || ${#a} -ge 13 ]]; then
@@ -1482,14 +1492,14 @@ info() {
         warn "首次安装请查看脚本帮助文档: $(msg_ul https://github.com/${is_sh_repo})"
     fi
     if [[ $is_url ]]; then
-        msg "------------- ${info_list[12]} -------------"
+        section_title "${info_list[12]}"
         msg "\e[4;${is_color}m${is_url}\e[0m"
         [[ $is_insecure ]] && {
             warn "某些客户端如(V2rayN 等)导入URL需手动将: 跳过证书验证(allowInsecure) 设置为 true, 或打开: 允许不安全的连接"
         }
     fi
     if [[ $is_no_auto_tls ]]; then
-        msg "------------- no-auto-tls INFO -------------"
+        section_title "no-auto-tls INFO"
         msg "端口(port): $port"
         msg "路径(path): $path"
         msg "\e[41m帮助(help)\e[0m: $(msg_ul https://github.com/${is_sh_repo})"
@@ -1501,7 +1511,9 @@ info() {
 footer_msg() {
     [[ $is_core_stop && ! $is_new_json ]] && warn "$is_core_name 当前处于停止状态."
     [[ $is_caddy_stop && $host ]] && warn "Caddy 当前处于停止状态."
-    msg "------------- END -------------"
+    line_sep
+    msg "END"
+    line_sep
     msg "反馈问题: $(msg_ul https://github.com/${is_sh_repo}/issues)\n"
 }
 
@@ -1511,11 +1523,13 @@ url_qr() {
     info $2
     if [[ $is_url ]]; then
         [[ $1 == 'url' ]] && {
-            msg "\n------------- $is_config_name & URL 链接 -------------"
+            msg
+            section_title "$is_config_name & URL 链接"
             msg "\n\e[${is_color}m${is_url}\e[0m\n"
             footer_msg
         } || {
-            msg "\n------------- $is_config_name & QR code 二维码 -------------"
+            msg
+            section_title "$is_config_name & QR code 二维码"
             msg
             if [[ $(type -P qrencode) ]]; then
                 qrencode -t ANSI "${is_url}"
@@ -1586,7 +1600,8 @@ update() {
 
 # main menu; if no prefer args.
 is_main_menu() {
-    msg "\n------------- $is_core_name-plus script $is_sh_ver -------------"
+    msg
+    section_title "$is_core_name-plus script $is_sh_ver"
     msg "$is_core_name $is_core_ver: $is_core_status"
     if declare -F relay_show_existing_nodes >/dev/null && declare -F relay_show_configs >/dev/null; then
         relay_show_existing_nodes
