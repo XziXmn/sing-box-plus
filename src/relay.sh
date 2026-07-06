@@ -29,7 +29,7 @@ relay_show_configs() {
     msg
     section_title "当前链式代理配置"
     if ! ls "$is_conf_dir"/${relay_config_prefix}*.json >/dev/null 2>&1; then
-        msg "暂无链式中转配置."
+        msg "暂无链式代理配置."
         line_sep
         return
     fi
@@ -260,7 +260,7 @@ relay_write_chain_config() {
 
     "$is_core_bin" check -c "$is_config_json" -C "$is_conf_dir" || {
         rm -f "$relay_file"
-        err "sing-box 配置检查失败，已回滚链式中转配置."
+        err "sing-box 配置检查失败，已回滚链式代理配置."
     }
 
     manage restart
@@ -298,5 +298,5 @@ relay_delete_chain_config() {
     rm -f "$relay_delete_path"
     "$is_core_bin" check -c "$is_config_json" -C "$is_conf_dir" || err "sing-box 配置检查失败，请检查剩余配置."
     manage restart
-    msg "已删除链式中转配置: $relay_delete_name"
+    msg "已删除链式代理配置: $relay_delete_name"
 }

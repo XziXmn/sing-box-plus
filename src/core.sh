@@ -126,10 +126,34 @@ line_sep() {
     msg "----------------------------------------"
 }
 
+text_width() {
+    local text=$1
+    local i char width=0 ascii_re='^[ -~]$'
+    for ((i = 0; i < ${#text}; i++)); do
+        char=${text:i:1}
+        if [[ $char =~ $ascii_re ]]; then
+            ((width++))
+        else
+            ((width += 2))
+        fi
+    done
+    echo $width
+}
+
 section_title() {
-    line_sep
-    msg "$1"
-    line_sep
+    local width=40
+    local title=" $1 "
+    local title_width left_width right_width left right
+    title_width=$(text_width "$title")
+    if [[ $title_width -ge $width ]]; then
+        msg "$title"
+        return
+    fi
+    left_width=$(((width - title_width) / 2))
+    right_width=$((width - title_width - left_width))
+    printf -v left '%*s' "$left_width" ''
+    printf -v right '%*s' "$right_width" ''
+    msg "${left// /-}${title}${right// /-}"
 }
 
 # pause
