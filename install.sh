@@ -394,6 +394,43 @@ install_relay_parser() {
     msg ok "已安装 relay-parser."
 }
 
+start_core_once() {
+    if [[ $is_systemd ]]; then
+        systemctl start $is_core &>/dev/null || true
+    elif [[ $is_openrc ]]; then
+        rc-service $is_core start &>/dev/null || true
+    fi
+    if pgrep -f "$is_core_bin" &>/dev/null; then
+        msg ok "已启动 $is_core_name."
+    else
+        msg warn "$is_core_name 未能启动, 请执行: sb test 查看原因."
+    fi
+}
+
+enable_bbr_if_possible() {
+    [[ -f $is_sh_dir/src/bbr.sh ]] || return
+    load bbr.sh
+    _auto_enable_bbr
+}
+
+show_finish_tips() {
+    echo
+    echo "使用命令:"
+    echo "  sb              打开主菜单"
+    echo "  sb start        启动 sing-box"
+    echo "  sb restart      重启 sing-box"
+    echo "  sb test         测试运行"
+    echo "  sbb             链式转发"
+    echo
+}
+
+finish_install_ok() {
+    enable_bbr_if_possible
+    start_core_once
+    show_finish_tips
+    exit_and_del_tmpdir ok
+}
+
 is_installed_plus() {
     [[ -f $is_sh_dir/src/init.sh ]] && grep -q "is_sh_repo=XziXmn/sing-box-plus" $is_sh_dir/src/init.sh
 }
@@ -425,7 +462,7 @@ update_plus_install() {
     chmod +x $is_sh_bin ${is_sh_bin/$is_core/sb} /usr/local/bin/sbb
     install_relay_parser
     msg ok "sing-box-plus 脚本更新完成."
-    exit_and_del_tmpdir ok
+    finish_install_ok
 }
 
 ask_migrate_existing_install() {
@@ -618,7 +655,7 @@ main() {
         manage restart &
         wait
         msg ok "迁移完成. 已卸载原脚本并安装 sing-box-plus."
-        exit_and_del_tmpdir ok
+        finish_install_ok
     fi
 
     # create a reality config
@@ -626,7 +663,7 @@ main() {
     # wait for background tasks (e.g., OpenRC service start)
     wait
     # remove tmp dir and exit.
-    exit_and_del_tmpdir ok
+    finish_install_ok
 }
 
 # start.
