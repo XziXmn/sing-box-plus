@@ -376,6 +376,39 @@ restore_migrated_config() {
     msg ok "已恢复迁移配置."
 }
 
+is_installed_plus() {
+    [[ -f $is_sh_dir/src/init.sh ]] && grep -q "is_sh_repo=XziXmn/sing-box-plus" $is_sh_dir/src/init.sh
+}
+
+update_plus_install() {
+    backup_dir=/root/sing-box-plus-backup-$(date +%Y%m%d-%H%M%S)
+    mkdir -p $backup_dir
+    cp -a $is_sh_dir $backup_dir/sh
+    msg warn "检测到 sing-box-plus 已安装."
+    msg warn "已备份现有脚本到 > $backup_dir"
+
+    rm -rf $is_sh_dir
+    mkdir -p $is_sh_dir
+    if [[ $local_install ]]; then
+        cp -rf $PWD/* $is_sh_dir
+    else
+        mkdir -p $tmpdir
+        download sh
+        [[ ! -f $is_sh_ok ]] && {
+            msg err "下载 ${is_core_name} 脚本失败"
+            exit_and_del_tmpdir
+        }
+        tar zxf $is_sh_ok -C $is_sh_dir
+    fi
+
+    ln -sf $is_sh_dir/$is_core.sh $is_sh_bin
+    ln -sf $is_sh_dir/$is_core.sh ${is_sh_bin/$is_core/sb}
+    ln -sf $is_sh_dir/$is_core.sh /usr/local/bin/sbb
+    chmod +x $is_sh_bin ${is_sh_bin/$is_core/sb} /usr/local/bin/sbb
+    msg ok "sing-box-plus 脚本更新完成."
+    exit_and_del_tmpdir ok
+}
+
 ask_migrate_existing_install() {
     warn "检测到 sing-box 脚本已安装."
     echo -ne "是否迁移现有配置到 sing-box-plus? [y/N]: "
@@ -421,6 +454,7 @@ main() {
 
     # check old version
     [[ -f $is_sh_bin && -d $is_core_dir/bin && -d $is_sh_dir && -d $is_conf_dir ]] && {
+        is_installed_plus && update_plus_install
         [[ $is_migrate ]] && {
             prepare_migrate_install
         } || {
