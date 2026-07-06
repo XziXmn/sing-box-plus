@@ -1,10 +1,31 @@
 _open_bbr() {
-	[[ -w /etc/sysctl.conf ]] || return 1
-	sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf || return 1
-	sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf || return 1
+	[[ -w /etc/sysctl.conf ]] || {
+		bbr_error="无法写入 /etc/sysctl.conf"
+		return 1
+	}
+	modprobe tcp_bbr 2>/dev/null || true
+	if ! sysctl net.ipv4.tcp_available_congestion_control 2>/dev/null | grep -qw bbr; then
+		bbr_error="当前系统未提供 tcp_bbr 模块"
+		return 1
+	fi
+	sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf || {
+		bbr_error="更新 /etc/sysctl.conf 失败"
+		return 1
+	}
+	sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf || {
+		bbr_error="更新 /etc/sysctl.conf 失败"
+		return 1
+	}
 	echo "net.ipv4.tcp_congestion_control = bbr" >>/etc/sysctl.conf
 	echo "net.core.default_qdisc = fq" >>/etc/sysctl.conf
-	sysctl -p &>/dev/null || return 1
+	sysctl -p &>/dev/null || {
+		bbr_error="应用 sysctl 配置失败"
+		return 1
+	}
+	[[ $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null) == "bbr" ]] || {
+		bbr_error="系统未切换到 bbr"
+		return 1
+	}
 	echo
 	_green "..已经启用 BBR 优化...."
 	echo
@@ -18,7 +39,7 @@ _kernel_supports_bbr() {
 
 _try_enable_bbr() {
 	if _kernel_supports_bbr; then
-		_open_bbr || err "启用 BBR 优化失败."
+		_open_bbr || err "启用 BBR 优化失败: ${bbr_error:-未知原因}"
 	else
 		err "不支持启用 BBR 优化."
 	fi
@@ -31,15 +52,9 @@ _auto_enable_bbr() {
 
 	local _virt
 	_virt=$(systemd-detect-virt 2>/dev/null || true)
-	[[ "$_virt" =~ lxc|openvz ]] && {
-		warn "当前虚拟化环境为 $_virt，跳过自动启用原版 BBR."
-		return
-	}
+	[[ "$_virt" =~ lxc|openvz ]] && return
 
-	_kernel_supports_bbr || {
-		warn "当前内核不支持自动启用 BBR，已跳过."
-		return
-	}
+	_kernel_supports_bbr || return
 
-	_open_bbr || warn "自动启用 BBR 失败，请稍后手动执行: $is_core bbr"
+	_open_bbr &>/dev/null || true
 }
