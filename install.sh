@@ -424,10 +424,18 @@ show_finish_tips() {
     echo
 }
 
+open_main_menu_if_tty() {
+    [[ -t 0 && -x $is_sh_bin ]] || return
+    msg warn "正在打开主菜单..."
+    rm -rf $tmpdir
+    exec $is_sh_bin main
+}
+
 finish_install_ok() {
     enable_bbr_if_possible
     start_core_once
     show_finish_tips
+    open_main_menu_if_tty
     exit_and_del_tmpdir ok
 }
 
