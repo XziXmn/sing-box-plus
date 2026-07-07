@@ -32,4 +32,16 @@ jq -e '
   .tls.reality.public_key == "PBKEY"
 ' <<<"$outbound" >/dev/null
 
+hysteria_sample='hysteria://hy-pass@hy.example.com:443?auth=hy-pass&sni=hy.example.com&insecure=1&upmbps=50&downmbps=100#hy'
+hysteria_outbound=$(../../tmp-relay-parser "$hysteria_sample")
+
+jq -e '
+  .type == "hysteria" and
+  .server == "hy.example.com" and
+  .server_port == 443 and
+  .auth_str == "hy-pass" and
+  .up_mbps == 50 and
+  .down_mbps == 100
+' <<<"$hysteria_outbound" >/dev/null
+
 rm -f ../../tmp-relay-parser

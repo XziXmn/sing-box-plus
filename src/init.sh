@@ -144,7 +144,7 @@ if [[ -f $is_caddy_bin && -d $is_caddy_dir && $is_caddy_service ]]; then
 fi
 
 load bbr.sh
-_auto_enable_bbr
+_bbr_status
 load core.sh
 [[ ! $args && "$is_cmd_name" == "sbb" ]] && args=relay
 [[ ! $args ]] && args=main

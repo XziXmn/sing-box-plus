@@ -1632,6 +1632,8 @@ is_main_menu() {
     msg
     section_title "$is_core_name-plus script $is_sh_ver"
     msg "$is_core_name $is_core_ver: $is_core_status"
+    declare -F _prompt_enable_bbr >/dev/null && _prompt_enable_bbr
+    [[ $is_bbr_status ]] && msg "BBR: $is_bbr_status"
     if declare -F relay_show_existing_nodes >/dev/null && declare -F relay_show_configs >/dev/null; then
         relay_show_existing_nodes
         relay_show_configs

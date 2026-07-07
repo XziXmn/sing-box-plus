@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/MMWOrg/mmwX-plugins/proxyparser"
@@ -36,6 +37,9 @@ func intValue(node map[string]any, key string) int {
 	case json.Number:
 		i, _ := value.Int64()
 		return int(i)
+	case string:
+		i, _ := strconv.Atoi(strings.TrimSpace(value))
+		return i
 	}
 	return 0
 }
@@ -81,6 +85,15 @@ func firstString(node map[string]any, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstInt(node map[string]any, keys ...string) int {
+	for _, key := range keys {
+		if value := intValue(node, key); value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func baseOutbound(node map[string]any, outboundType string) (map[string]any, error) {
@@ -259,6 +272,13 @@ func hysteriaOutbound(node map[string]any) (map[string]any, error) {
 	if auth := firstString(node, "auth-str", "auth", "password"); auth != "" {
 		outbound["auth_str"] = auth
 	}
+	upMbps := firstInt(node, "up_mbps", "up-mbps", "upmbps", "upload-mbps", "upload", "up")
+	downMbps := firstInt(node, "down_mbps", "down-mbps", "downmbps", "download-mbps", "download", "down")
+	if upMbps == 0 || downMbps == 0 {
+		return nil, fmt.Errorf("hysteria target missing up/down speed")
+	}
+	outbound["up_mbps"] = upMbps
+	outbound["down_mbps"] = downMbps
 	addTLS(outbound, node, true)
 	return outbound, nil
 }

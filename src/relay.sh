@@ -42,10 +42,15 @@ relay_show_configs() {
         relay_name=$(basename "$relay_file")
         relay_type=$(jq -r '.inbounds[0].type // "unknown"' "$relay_file" 2>/dev/null)
         relay_port=$(jq -r '.inbounds[0].listen_port // "unknown"' "$relay_file" 2>/dev/null)
+        relay_host=$(jq -r '.inbounds[0].transport.headers.host // empty' "$relay_file" 2>/dev/null)
         relay_target_type=$(jq -r '.outbounds[0].type // "unknown"' "$relay_file" 2>/dev/null)
         relay_target=$(jq -r '.outbounds[0].server // "unknown"' "$relay_file" 2>/dev/null)
         relay_target_port=$(jq -r '.outbounds[0].server_port // "unknown"' "$relay_file" 2>/dev/null)
-        msg "$relay_name | 入站:$relay_type:$relay_port -> 出站:$relay_target_type:$relay_target:$relay_target_port"
+        if [[ $relay_host ]]; then
+            msg "$relay_name | 入站:$relay_type:$relay_host:$is_https_port -> 后端:127.0.0.1:$relay_port -> 出站:$relay_target_type:$relay_target:$relay_target_port"
+        else
+            msg "$relay_name | 入站:$relay_type:$relay_port -> 出站:$relay_target_type:$relay_target:$relay_target_port"
+        fi
     done
     line_sep
 }
@@ -78,18 +83,77 @@ relay_add_chain_menu() {
     relay_write_chain_config
 }
 
+relay_is_recommended_protocol() {
+    case "$1" in
+    VLESS-REALITY | Hysteria2 | TUIC | Shadowsocks | Trojan | AnyTLS)
+        return 0
+        ;;
+    esac
+    return 1
+}
+
+relay_tls_host_used() {
+    [[ ! $relay_inbound_host ]] && return 1
+    if [[ -f "$is_caddy_conf/$relay_inbound_host.conf" ]]; then
+        relay_replace_host=$(jq -r '.inbounds[0].transport.headers.host // empty' "$relay_replace_file" 2>/dev/null)
+        [[ "$relay_replace_host" == "$relay_inbound_host" ]] || return 0
+    fi
+    for relay_file in "$is_conf_dir"/*.json; do
+        [[ -f "$relay_file" ]] || continue
+        [[ "$relay_file" == "$relay_replace_file" ]] && continue
+        relay_existing_host=$(jq -r '.inbounds[0].transport.headers.host // empty' "$relay_file" 2>/dev/null)
+        [[ "$relay_existing_host" == "$relay_inbound_host" ]] && return 0
+    done
+    return 1
+}
+
+relay_check_caddy_config() {
+    [[ $relay_uses_caddy_tls ]] || return
+    relay_caddy_error=
+    [[ -x "$is_caddy_bin" ]] || {
+        relay_caddy_error="Caddy 未安装，无法启用 TLS 链式转发."
+        return 1
+    }
+    "$is_caddy_bin" validate --config "$is_caddyfile" --adapter caddyfile &>/dev/null || {
+        relay_caddy_error="Caddy 配置检查失败."
+        return 1
+    }
+}
+
+relay_rollback_chain_config() {
+    rm -f "$relay_file"
+    [[ $relay_backup_file ]] && mv -f "$relay_backup_file" "$relay_replace_file"
+}
+
 relay_collect_chain_config() {
-    msg "\n请选择入站协议"
     relay_inbound_protocols=()
-    for relay_protocol in "${protocol_list[@]}"; do
-        [[ "$relay_protocol" == "Direct" ]] && continue
+    relay_recommended_protocols=(VLESS-REALITY Hysteria2 TUIC Shadowsocks Trojan AnyTLS)
+
+    msg "\n请选择入站协议"
+    for relay_protocol in "${relay_recommended_protocols[@]}"; do
         relay_inbound_protocols+=("$relay_protocol")
         msg "${#relay_inbound_protocols[@]}. $relay_protocol"
     done
+    relay_advanced_choice=$((${#relay_inbound_protocols[@]} + 1))
+    msg "$relay_advanced_choice. 进阶协议"
 
     ask string relay_choice "请选择:"
     [[ ! "$relay_choice" =~ ^[0-9]+$ ]] && err "无效选择."
-    [[ "$relay_choice" -lt 1 || "$relay_choice" -gt "${#relay_inbound_protocols[@]}" ]] && err "无效选择."
+    [[ "$relay_choice" -lt 1 || "$relay_choice" -gt "$relay_advanced_choice" ]] && err "无效选择."
+    if [[ "$relay_choice" -eq "$relay_advanced_choice" ]]; then
+        relay_inbound_protocols=()
+        msg "\n请选择进阶入站协议"
+        for relay_protocol in "${protocol_list[@]}"; do
+            [[ "$relay_protocol" == "Direct" ]] && continue
+            relay_is_recommended_protocol "$relay_protocol" && continue
+            relay_inbound_protocols+=("$relay_protocol")
+            msg "${#relay_inbound_protocols[@]}. $relay_protocol"
+        done
+
+        ask string relay_choice "请选择:"
+        [[ ! "$relay_choice" =~ ^[0-9]+$ ]] && err "无效选择."
+        [[ "$relay_choice" -lt 1 || "$relay_choice" -gt "${#relay_inbound_protocols[@]}" ]] && err "无效选择."
+    fi
     relay_inbound_protocol="${relay_inbound_protocols[$((relay_choice - 1))]}"
 
     ask string relay_target_link "请粘贴目标代理链接:"
@@ -110,6 +174,7 @@ relay_collect_chain_config() {
         relay_inbound_host=
         ask string relay_inbound_host "请输入入站域名:"
         [[ -z "$relay_inbound_host" ]] && err "$relay_inbound_protocol 需要入站域名."
+        relay_tls_host_used && err "入站域名已被现有配置占用: $relay_inbound_host"
     fi
 
     get_uuid
@@ -183,30 +248,53 @@ relay_build_inbound_json() {
     is_dont_test_host=1
     is_dont_show_info=1
     is_test_json=1
+    relay_uses_caddy_tls=
     is_new_protocol=
     is_new_json=
     is_config_file=
+    is_protocol=
+    net=
+    net_type=
     json_str=
     host=
     path=
     is_servername=
+    is_private_key=
+    is_public_key=
+    is_reality=
+    is_add_public_key=
+    is_use_tls=
+    is_use_host=
+    is_use_uuid=
+    is_use_path=
+    is_use_port=
+    is_use_pass=
+    is_use_method=
+    is_use_servername=
+    is_use_socks_user=
+    is_use_socks_pass=
+    is_tmp_use_type=
     is_anytls_domain=
     ss_method=
 
     case ${relay_inbound_protocol,,} in
     *-tls)
         host="$relay_inbound_host"
-        is_no_auto_tls=1
+        is_dont_test_host=
+        relay_uses_caddy_tls=1
         add "$relay_inbound_protocol" "$host" "$uuid" auto
         ;;
     *reality*)
-        add "$relay_inbound_protocol" "$port" "$uuid" auto
+        add "$relay_inbound_protocol" "$port" "$uuid"
         ;;
     trojan* | hysteria2* | anytls*)
         add "$relay_inbound_protocol" "$port" "$password"
         ;;
     shadowsocks)
-        add "$relay_inbound_protocol" "$port" "$ss_password"
+        ss_method="$is_random_ss_method"
+        ss_password=$(get ss2022)
+        relay_inbound_password="$ss_password"
+        add "$relay_inbound_protocol" "$port" "$ss_password" "$ss_method"
         ;;
     socks)
         add "$relay_inbound_protocol" "$port" "$is_socks_user" "$is_socks_pass"
@@ -220,16 +308,13 @@ relay_build_inbound_json() {
 
     relay_inbound_json=$(jq -c \
         --argjson listen_port "$relay_listen_port" \
-        --arg cer "$relay_tls_cer" \
-        --arg key "$relay_tls_key" \
         '.inbounds[0]
         | .tag = "relay-in"
-        | .listen = "::"
-        | .listen_port = $listen_port
-        | if .tls.enabled == true and .tls.reality.enabled != true then .tls.certificate_path = $cer | .tls.key_path = $key else . end' \
+        | .listen_port = $listen_port' \
         <<<$is_new_json)
 
     is_test_json=
+    is_dont_test_host=
     is_dont_show_info=
     is_no_auto_tls=
 }
@@ -243,6 +328,7 @@ relay_write_chain_config() {
     [[ -f "$relay_file" && "$relay_file" != "$relay_replace_file" ]] && err "配置已存在: $(basename "$relay_file")"
     relay_tmp_file="$relay_file.tmp.$$"
     relay_backup_file=
+    relay_old_caddy_host=
     relay_inbound_tag="relay-in-$relay_name"
     relay_outbound_tag="relay-target-$relay_name"
 
@@ -257,17 +343,36 @@ relay_write_chain_config() {
 
     if [[ $relay_replace_file ]]; then
         relay_backup_file="$relay_replace_file.bak.$$"
-        cp -f "$relay_replace_file" "$relay_backup_file"
+        relay_old_caddy_host=$(jq -r '.inbounds[0].transport.headers.host // empty' "$relay_replace_file" 2>/dev/null)
+        cp -f "$relay_replace_file" "$relay_backup_file" || {
+            rm -f "$relay_tmp_file"
+            err "备份链式转发配置失败."
+        }
         [[ "$relay_file" != "$relay_replace_file" ]] && rm -f "$relay_replace_file"
     fi
-    mv -f "$relay_tmp_file" "$relay_file"
+    mv -f "$relay_tmp_file" "$relay_file" || {
+        [[ $relay_backup_file ]] && mv -f "$relay_backup_file" "$relay_replace_file"
+        err "写入链式转发配置失败."
+    }
 
     "$is_core_bin" check -c "$is_config_json" -C "$is_conf_dir" || {
-        rm -f "$relay_file"
-        [[ $relay_backup_file ]] && mv -f "$relay_backup_file" "$relay_replace_file"
+        relay_rollback_chain_config
         err "sing-box 配置检查失败，已回滚链式转发配置."
     }
+
+    [[ $relay_uses_caddy_tls ]] && {
+        create caddy "$net"
+        relay_check_caddy_config || {
+            rm -f "$is_caddy_conf/$host.conf" "$is_caddy_conf/$host.conf.add"
+            relay_rollback_chain_config
+            err "${relay_caddy_error:-Caddy 配置检查失败.} 已回滚链式转发配置."
+        }
+    }
     [[ $relay_backup_file ]] && rm -f "$relay_backup_file"
+    if [[ $relay_old_caddy_host && $relay_old_caddy_host != "$host" && -f "$is_caddy_conf/$relay_old_caddy_host.conf" ]]; then
+        rm -rf "$is_caddy_conf/$relay_old_caddy_host.conf" "$is_caddy_conf/$relay_old_caddy_host.conf.add"
+        [[ ! $relay_uses_caddy_tls ]] && manage restart caddy &
+    fi
 
     relay_print_client_url
     msg "正在重启 $is_core_name 应用配置；如果当前连接经由 $is_core_name，可能会短暂断开."
@@ -279,14 +384,24 @@ relay_print_client_url() {
     msg
     section_title "relay-$relay_name 节点信息"
     msg "协议: $relay_inbound_protocol"
-    msg "地址: $ip"
-    msg "端口: $relay_listen_port"
+    if [[ $relay_uses_caddy_tls ]]; then
+        msg "域名: $relay_inbound_host"
+        msg "入口端口: $is_https_port"
+        msg "后端端口: $relay_listen_port"
+    else
+        msg "地址: $ip"
+        msg "端口: $relay_listen_port"
+    fi
     msg "UUID: $relay_inbound_uuid"
     msg "密码: $relay_inbound_password"
     msg "配置文件: ${relay_config_prefix}${relay_name}.json"
-    msg "请在 AWS 安全组和系统防火墙放行该入站协议需要的 TCP 或 UDP/$relay_listen_port"
+    if [[ $relay_uses_caddy_tls ]]; then
+        msg "请在 AWS 安全组和系统防火墙放行 Caddy HTTPS 端口 TCP/$is_https_port"
+    else
+        msg "请在 AWS 安全组和系统防火墙放行该入站协议需要的 TCP 或 UDP/$relay_listen_port"
+    fi
 
-    is_https_port="$relay_listen_port"
+    [[ ! $relay_uses_caddy_tls ]] && is_https_port="$relay_listen_port"
     url_qr url "${relay_config_prefix}${relay_name}.json"
 }
 

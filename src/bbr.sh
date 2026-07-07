@@ -45,6 +45,32 @@ _try_enable_bbr() {
 	fi
 }
 
+_bbr_status() {
+	bbr_current=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)
+	if [[ "$bbr_current" == "bbr" ]]; then
+		is_bbr_enabled=1
+		is_bbr_status=$(_green enabled)
+	else
+		is_bbr_enabled=
+		is_bbr_status=$(_red_bg disabled)
+	fi
+}
+
+_prompt_enable_bbr() {
+	_bbr_status
+	[[ $is_bbr_enabled ]] && return
+
+	if ! _kernel_supports_bbr; then
+		warn "当前系统未启用 BBR，且内核不支持自动启用."
+		return
+	fi
+
+	echo -ne "检测到 BBR 未启用，是否立即启用? [y/N]:"
+	read -r is_enable_bbr
+	[[ $(grep -i ^y$ <<<"$is_enable_bbr") ]] && _try_enable_bbr
+	_bbr_status
+}
+
 _auto_enable_bbr() {
 	local _current_bbr
 	_current_bbr=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)
