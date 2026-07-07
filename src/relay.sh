@@ -5,7 +5,8 @@ relay_menu() {
     msg
     section_title "链式转发"
     msg "1. 添加配置"
-    msg "2. 删除配置"
+    msg "2. 更改配置"
+    msg "3. 删除配置"
     msg "0. 退出"
     ask string relay_choice "请选择:"
 
@@ -14,6 +15,9 @@ relay_menu() {
         relay_add_chain_menu
         ;;
     2)
+        relay_change_chain_config
+        ;;
+    3)
         relay_delete_chain_config
         ;;
     0 | q | Q)
@@ -70,6 +74,11 @@ relay_show_existing_nodes() {
 }
 
 relay_add_chain_menu() {
+    relay_collect_chain_config
+    relay_write_chain_config
+}
+
+relay_collect_chain_config() {
     msg "\n请选择入站协议"
     relay_inbound_protocols=()
     for relay_protocol in "${protocol_list[@]}"; do
@@ -95,9 +104,10 @@ relay_add_chain_menu() {
 
     [[ ! "$relay_listen_port" =~ ^[0-9]+$ ]] && err "本地端口必须是数字."
     [[ "$relay_listen_port" -lt 1 || "$relay_listen_port" -gt 65535 ]] && err "本地端口范围必须是 1-65535."
-    [[ $(is_test port_used "$relay_listen_port") ]] && err "本地端口已被占用: $relay_listen_port"
+    [[ $(is_test port_used "$relay_listen_port") && "$relay_listen_port" != "$relay_allow_used_port" ]] && err "本地端口已被占用: $relay_listen_port"
 
     if [[ ${relay_inbound_protocol,,} == *-tls ]]; then
+        relay_inbound_host=
         ask string relay_inbound_host "请输入入站域名:"
         [[ -z "$relay_inbound_host" ]] && err "$relay_inbound_protocol 需要入站域名."
     fi
@@ -107,8 +117,6 @@ relay_add_chain_menu() {
     get_uuid
     relay_inbound_password="$tmp_uuid"
     relay_name="$(tr '[:upper:]' '[:lower:]' <<<"$relay_inbound_protocol" | tr -cd 'a-z0-9-')-$relay_listen_port"
-
-    relay_write_chain_config
 }
 
 relay_go_version_ok() {
@@ -232,7 +240,9 @@ relay_write_chain_config() {
     relay_build_inbound_json
 
     relay_file="$is_conf_dir/${relay_config_prefix}${relay_name}.json"
-    [[ -f "$relay_file" ]] && err "配置已存在: $(basename "$relay_file")"
+    [[ -f "$relay_file" && "$relay_file" != "$relay_replace_file" ]] && err "配置已存在: $(basename "$relay_file")"
+    relay_tmp_file="$relay_file.tmp.$$"
+    relay_backup_file=
     relay_inbound_tag="relay-in-$relay_name"
     relay_outbound_tag="relay-target-$relay_name"
 
@@ -243,12 +253,21 @@ relay_write_chain_config() {
         --arg outbound_tag "$relay_outbound_tag" \
         '($inbound | .tag = $inbound_tag) as $in
         | ($outbound | .tag = $outbound_tag) as $out
-        | {inbounds:[$in],outbounds:[$out],route:{rules:[{inbound:[$inbound_tag],action:"route",outbound:$outbound_tag}]}}' <<<'{}' >"$relay_file"
+        | {inbounds:[$in],outbounds:[$out],route:{rules:[{inbound:[$inbound_tag],action:"route",outbound:$outbound_tag}]}}' <<<'{}' >"$relay_tmp_file"
+
+    if [[ $relay_replace_file ]]; then
+        relay_backup_file="$relay_replace_file.bak.$$"
+        cp -f "$relay_replace_file" "$relay_backup_file"
+        [[ "$relay_file" != "$relay_replace_file" ]] && rm -f "$relay_replace_file"
+    fi
+    mv -f "$relay_tmp_file" "$relay_file"
 
     "$is_core_bin" check -c "$is_config_json" -C "$is_conf_dir" || {
         rm -f "$relay_file"
+        [[ $relay_backup_file ]] && mv -f "$relay_backup_file" "$relay_replace_file"
         err "sing-box 配置检查失败，已回滚链式转发配置."
     }
+    [[ $relay_backup_file ]] && rm -f "$relay_backup_file"
 
     relay_print_client_url
     msg "正在重启 $is_core_name 应用配置；如果当前连接经由 $is_core_name，可能会短暂断开."
@@ -269,6 +288,22 @@ relay_print_client_url() {
 
     is_https_port="$relay_listen_port"
     url_qr url "${relay_config_prefix}${relay_name}.json"
+}
+
+relay_change_chain_config() {
+    if ! ls "$is_conf_dir"/${relay_config_prefix}*.json >/dev/null 2>&1; then
+        msg "暂无链式转发配置."
+        return
+    fi
+
+    is_config_file=
+    get file "$relay_config_prefix"
+    relay_replace_file="$is_conf_dir/$is_config_file"
+    relay_allow_used_port=$(jq -r '.inbounds[0].listen_port // empty' "$relay_replace_file")
+    relay_collect_chain_config
+    relay_write_chain_config
+    relay_replace_file=
+    relay_allow_used_port=
 }
 
 relay_delete_chain_config() {

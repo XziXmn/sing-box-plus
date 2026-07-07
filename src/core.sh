@@ -1129,8 +1129,13 @@ get() {
     file)
         is_file_str=$2
         [[ ! $is_file_str ]] && is_file_str='.json$'
-        # is_all_json=("$(ls $is_conf_dir | grep -E $is_file_str)")
-        readarray -t is_all_json <<<"$(ls $is_conf_dir | grep -E -i "$is_file_str" | sed '/dynamic-port-.*-link/d' | head -233)" # limit max 233 lines for show.
+        if [[ $2 ]]; then
+            is_file_list=$(ls $is_conf_dir | grep -E -i "$is_file_str")
+        else
+            is_file_list=$(ls $is_conf_dir | grep -E -i "$is_file_str" | sed '/^relay-chain-/d')
+        fi
+        is_all_json=()
+        [[ $is_file_list ]] && readarray -t is_all_json <<<"$(sed '/dynamic-port-.*-link/d' <<<$is_file_list | head -233)" # limit max 233 lines for show.
         [[ ! $is_all_json ]] && err "无法找到相关的配置文件: $2"
         [[ ${#is_all_json[@]} -eq 1 ]] && is_config_file=$is_all_json && is_auto_get_config=1
         [[ ! $is_config_file ]] && {
