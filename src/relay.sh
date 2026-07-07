@@ -218,7 +218,7 @@ relay_build_inbound_json() {
         | .tag = "relay-in"
         | .listen = "::"
         | .listen_port = $listen_port
-        | if .tls.enabled == true then .tls.certificate_path = $cer | .tls.key_path = $key else . end' \
+        | if .tls.enabled == true and .tls.reality.enabled != true then .tls.certificate_path = $cer | .tls.key_path = $key else . end' \
         <<<$is_new_json)
 
     is_test_json=
