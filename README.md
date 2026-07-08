@@ -218,8 +218,31 @@ sing-box qr <name>        # 查看二维码
 sing-box status           # 查看运行状态
 sing-box restart          # 重启 sing-box
 sing-box update.sh        # 更新脚本
+sing-box export           # 导出配置 base64 文本到 /root
+sing-box import-export <text|file> # 导入导出的 base64 配置文本
 sing-box uninstall        # 卸载脚本
 ```
+
+导出配置会生成：
+
+```bash
+/root/sing-box-plus-config-YYYYmmdd-HHMMSS.b64.txt
+```
+
+导出内容包括 `/etc/sing-box/config.json`、`/etc/sing-box/conf`、TLS 证书文件，以及 sing-box-plus 使用的 Caddy 配置。
+
+这个文件本身就是完整配置包的 base64 文本，方便在多台服务器之间直接复制迁移。
+导出完成后，脚本也会在终端直接输出同一段 base64 文本。
+
+导入时使用：
+
+```bash
+sing-box import-export
+```
+
+执行后直接粘贴 `.b64.txt` 里的整段 base64 文本即可；也可以使用 `sing-box import-export /root/sing-box-plus-config-YYYYmmdd-HHMMSS.b64.txt` 从文件导入。
+
+导入会覆盖当前配置。脚本会先检查配置包内的端口冲突、协议端口冲突，以及目标端口是否被其他进程占用；通过后再把现有配置备份到 `/root/sing-box-plus-import-backup-YYYYmmdd-HHMMSS`，并要求确认后才执行覆盖。
 
 # 帮助
 
@@ -264,6 +287,8 @@ Usage: sing-box [options]... [args]...
    fix-all                                         修复全部配置
    fix-caddyfile                                   修复 Caddyfile
    fix-config.json                                 修复 config.json
+   export [dir]                                    导出配置 base64 文本
+   import-export [text|file]                       导入 base64 配置文本
    import                                          导入 sing-box/v2ray 脚本配置
 
 管理:

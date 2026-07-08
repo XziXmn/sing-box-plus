@@ -47,6 +47,8 @@ show_help() {
             "   fix-all                                         修复全部配置"
             "   fix-caddyfile                                   修复 Caddyfile"
             "   fix-config.json                                 修复 config.json"
+            "   export [dir]                                    导出配置 base64 文本"
+            "   import-export [text|file]                       导入 base64 配置文本"
             "   import                                          导入 sing-box/v2ray 脚本配置\n"
             "管理:"
             "   relay                                           链式转发管理"

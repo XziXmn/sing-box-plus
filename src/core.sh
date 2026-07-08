@@ -1681,7 +1681,7 @@ is_main_menu() {
         show_help
         ;;
     11)
-        ask list is_do_other "查看日志 测试运行 重装脚本 设置DNS"
+        ask list is_do_other "查看日志 测试运行 重装脚本 设置DNS 导出配置 导入配置"
         case $REPLY in
         1)
             load log.sh
@@ -1696,6 +1696,14 @@ is_main_menu() {
         4)
             load dns.sh
             dns_set
+            ;;
+        5)
+            load export.sh
+            export_config
+            ;;
+        6)
+            load export.sh
+            import_export_config
             ;;
         esac
         ;;
@@ -1801,6 +1809,14 @@ main() {
         ;;
     in | import)
         load import.sh
+        ;;
+    export | backup)
+        load export.sh
+        export_config $2
+        ;;
+    import-export | restore | restore-config)
+        load export.sh
+        import_export_config $2
         ;;
     log)
         load log.sh
