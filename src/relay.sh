@@ -126,6 +126,25 @@ relay_rollback_chain_config() {
 }
 
 relay_collect_chain_config() {
+    relay_select_inbound_protocol
+
+    ask string relay_target_link "请粘贴目标代理链接:"
+    [[ -z "$relay_target_link" ]] && err "目标代理链接不能为空."
+
+    relay_ask_listen_port
+
+    if [[ ${relay_inbound_protocol,,} == *-tls ]]; then
+        relay_inbound_host=
+        ask string relay_inbound_host "请输入入站域名:"
+        [[ -z "$relay_inbound_host" ]] && err "$relay_inbound_protocol 需要入站域名."
+        relay_tls_host_used && err "入站域名已被现有配置占用: $relay_inbound_host"
+    fi
+
+    relay_new_credentials
+    relay_set_name
+}
+
+relay_select_inbound_protocol() {
     relay_inbound_protocols=()
     relay_recommended_protocols=(VLESS-REALITY Hysteria2 TUIC Shadowsocks Trojan AnyTLS)
 
@@ -155,10 +174,9 @@ relay_collect_chain_config() {
         [[ "$relay_choice" -lt 1 || "$relay_choice" -gt "${#relay_inbound_protocols[@]}" ]] && err "无效选择."
     fi
     relay_inbound_protocol="${relay_inbound_protocols[$((relay_choice - 1))]}"
+}
 
-    ask string relay_target_link "请粘贴目标代理链接:"
-    [[ -z "$relay_target_link" ]] && err "目标代理链接不能为空."
-
+relay_ask_listen_port() {
     echo -ne "本地监听端口，回车随机:"
     read -r relay_listen_port
     if [[ -z "$relay_listen_port" ]]; then
@@ -169,19 +187,29 @@ relay_collect_chain_config() {
     [[ ! "$relay_listen_port" =~ ^[0-9]+$ ]] && err "本地端口必须是数字."
     [[ "$relay_listen_port" -lt 1 || "$relay_listen_port" -gt 65535 ]] && err "本地端口范围必须是 1-65535."
     [[ $(is_test port_used "$relay_listen_port") && "$relay_listen_port" != "$relay_allow_used_port" ]] && err "本地端口已被占用: $relay_listen_port"
+}
 
-    if [[ ${relay_inbound_protocol,,} == *-tls ]]; then
-        relay_inbound_host=
-        ask string relay_inbound_host "请输入入站域名:"
-        [[ -z "$relay_inbound_host" ]] && err "$relay_inbound_protocol 需要入站域名."
-        relay_tls_host_used && err "入站域名已被现有配置占用: $relay_inbound_host"
-    fi
-
+relay_new_credentials() {
     get_uuid
     relay_inbound_uuid="$tmp_uuid"
     get_uuid
     relay_inbound_password="$tmp_uuid"
+}
+
+relay_set_name() {
     relay_name="$(tr '[:upper:]' '[:lower:]' <<<"$relay_inbound_protocol" | tr -cd 'a-z0-9-')-$relay_listen_port"
+}
+
+relay_protocol_from_slug() {
+    relay_protocol_slug=$1
+    for relay_protocol in "${protocol_list[@]}"; do
+        [[ "$relay_protocol" == "Direct" ]] && continue
+        [[ "$(tr '[:upper:]' '[:lower:]' <<<"$relay_protocol" | tr -cd 'a-z0-9-')" == "$relay_protocol_slug" ]] && {
+            relay_inbound_protocol=$relay_protocol
+            return
+        }
+    done
+    err "无法识别链式转发入站协议: $relay_protocol_slug"
 }
 
 relay_go_version_ok() {
@@ -243,12 +271,13 @@ relay_build_inbound_json() {
     uuid="$relay_inbound_uuid"
     password="$relay_inbound_password"
     ss_password="$relay_inbound_password"
-    is_socks_user=relay
+    is_socks_user=${relay_inbound_socks_user:-relay}
     is_socks_pass="$relay_inbound_password"
     is_dont_test_host=1
     is_dont_show_info=1
     is_test_json=1
     relay_uses_caddy_tls=
+    relay_update_caddy_tls=
     is_new_protocol=
     is_new_json=
     is_config_file=
@@ -282,7 +311,8 @@ relay_build_inbound_json() {
         host="$relay_inbound_host"
         is_dont_test_host=
         relay_uses_caddy_tls=1
-        add "$relay_inbound_protocol" "$host" "$uuid" auto
+        relay_update_caddy_tls=1
+        add "$relay_inbound_protocol" "$host" "$uuid" "${relay_inbound_path:-auto}"
         ;;
     *reality*)
         add "$relay_inbound_protocol" "$port" "$uuid"
@@ -291,8 +321,12 @@ relay_build_inbound_json() {
         add "$relay_inbound_protocol" "$port" "$password"
         ;;
     shadowsocks)
-        ss_method="$is_random_ss_method"
-        ss_password=$(get ss2022)
+        ss_method=${relay_inbound_method:-$is_random_ss_method}
+        if [[ $relay_inbound_method ]]; then
+            ss_password=$relay_inbound_password
+        else
+            ss_password=$(get ss2022)
+        fi
         relay_inbound_password="$ss_password"
         add "$relay_inbound_protocol" "$port" "$ss_password" "$ss_method"
         ;;
@@ -321,8 +355,8 @@ relay_build_inbound_json() {
 
 relay_write_chain_config() {
     relay_ensure_parser
-    relay_outbound_json=$("$relay_parser_bin" "$relay_target_link") || err "目标代理链接解析失败."
-    relay_build_inbound_json
+    [[ $relay_outbound_json ]] || relay_outbound_json=$("$relay_parser_bin" "$relay_target_link") || err "目标代理链接解析失败."
+    [[ $relay_inbound_json ]] || relay_build_inbound_json
 
     relay_file="$is_conf_dir/${relay_config_prefix}${relay_name}.json"
     [[ -f "$relay_file" && "$relay_file" != "$relay_replace_file" ]] && err "配置已存在: $(basename "$relay_file")"
@@ -360,7 +394,7 @@ relay_write_chain_config() {
         err "sing-box 配置检查失败，已回滚链式转发配置."
     }
 
-    [[ $relay_uses_caddy_tls ]] && {
+    [[ $relay_update_caddy_tls ]] && {
         create caddy "$net"
         relay_check_caddy_config || {
             rm -f "$is_caddy_conf/$host.conf" "$is_caddy_conf/$host.conf.add"
@@ -371,7 +405,7 @@ relay_write_chain_config() {
     [[ $relay_backup_file ]] && rm -f "$relay_backup_file"
     if [[ $relay_old_caddy_host && $relay_old_caddy_host != "$host" && -f "$is_caddy_conf/$relay_old_caddy_host.conf" ]]; then
         rm -rf "$is_caddy_conf/$relay_old_caddy_host.conf" "$is_caddy_conf/$relay_old_caddy_host.conf.add"
-        [[ ! $relay_uses_caddy_tls ]] && manage restart caddy &
+        [[ ! $relay_update_caddy_tls ]] && manage restart caddy &
     fi
 
     relay_print_client_url
@@ -411,14 +445,110 @@ relay_change_chain_config() {
         return
     fi
 
+    relay_load_chain_config
+    is_tmp_list=("更改入站协议" "更改入站端口")
+    [[ ${relay_inbound_protocol,,} == *-tls || $relay_inbound_host ]] && is_tmp_list+=("更改入站域名")
+    [[ $relay_inbound_password ]] && is_tmp_list+=("更改密码")
+    [[ $relay_inbound_uuid ]] && is_tmp_list+=("更改 UUID")
+    [[ $relay_inbound_method ]] && is_tmp_list+=("更改加密方式")
+    [[ $relay_inbound_socks_user ]] && is_tmp_list+=("更改用户名")
+    is_tmp_list+=("更改出站链接" "全量修改")
+    ask list relay_change_item null "\n请选择更改:\n"
+    case $relay_change_item in
+    更改入站协议)
+        relay_select_inbound_protocol
+        relay_ask_listen_port
+        relay_inbound_host=
+        if [[ ${relay_inbound_protocol,,} == *-tls ]]; then
+            ask string relay_inbound_host "请输入入站域名:"
+            [[ -z "$relay_inbound_host" ]] && err "$relay_inbound_protocol 需要入站域名."
+            relay_tls_host_used && err "入站域名已被现有配置占用: $relay_inbound_host"
+        fi
+        relay_new_credentials
+        relay_set_name
+        relay_write_chain_config
+        ;;
+    更改入站端口)
+        relay_ask_listen_port
+        relay_set_name
+        relay_write_chain_config
+        ;;
+    更改入站域名)
+        [[ ${relay_inbound_protocol,,} != *-tls && ! $relay_inbound_host ]] && err "当前链式转发配置不支持更改入站域名."
+        ask string relay_inbound_host "请输入新入站域名:"
+        [[ -z "$relay_inbound_host" ]] && err "入站域名不能为空."
+        relay_tls_host_used && err "入站域名已被现有配置占用: $relay_inbound_host"
+        relay_write_chain_config
+        ;;
+    更改密码)
+        ask string relay_inbound_password "请输入新密码:"
+        [[ -z "$relay_inbound_password" ]] && err "密码不能为空."
+        relay_write_chain_config
+        ;;
+    "更改 UUID")
+        ask string relay_inbound_uuid "请输入新 UUID:"
+        [[ -z "$relay_inbound_uuid" ]] && err "UUID 不能为空."
+        relay_write_chain_config
+        ;;
+    更改加密方式)
+        [[ -z "$relay_inbound_method" ]] && err "当前链式转发配置不支持更改加密方式."
+        ask set_ss_method
+        relay_inbound_method=$ss_method
+        relay_write_chain_config
+        ;;
+    更改用户名)
+        [[ -z "$relay_inbound_socks_user" ]] && err "当前链式转发配置不支持更改用户名."
+        ask string relay_inbound_socks_user "请输入新用户名:"
+        [[ -z "$relay_inbound_socks_user" ]] && err "用户名不能为空."
+        relay_write_chain_config
+        ;;
+    更改出站链接)
+        ask string relay_target_link "请粘贴新的目标代理链接:"
+        [[ -z "$relay_target_link" ]] && err "目标代理链接不能为空."
+        relay_inbound_json=$(jq -c '.inbounds[0]' "$relay_replace_file") || err "无法读取链式转发入站配置."
+        relay_outbound_json=
+        relay_write_chain_config
+        ;;
+    全量修改)
+        relay_collect_chain_config
+        relay_outbound_json=
+        relay_write_chain_config
+        ;;
+    esac
+    relay_reset_change_state
+}
+
+relay_load_chain_config() {
     is_config_file=
     get file "$relay_config_prefix"
     relay_replace_file="$is_conf_dir/$is_config_file"
-    relay_allow_used_port=$(jq -r '.inbounds[0].listen_port // empty' "$relay_replace_file")
-    relay_collect_chain_config
-    relay_write_chain_config
+    relay_name=${is_config_file%.json}
+    relay_name=${relay_name#$relay_config_prefix}
+    relay_protocol_slug=${relay_name%-*}
+    relay_protocol_from_slug "$relay_protocol_slug"
+    relay_listen_port=$(jq -r '.inbounds[0].listen_port // empty' "$relay_replace_file")
+    relay_allow_used_port=$relay_listen_port
+    relay_inbound_host=$(jq -r '.inbounds[0].transport.headers.host // empty' "$relay_replace_file")
+    relay_inbound_path=$(jq -r '.inbounds[0].transport.path // empty' "$relay_replace_file")
+    relay_inbound_uuid=$(jq -r '.inbounds[0].users[0].uuid // .inbounds[0].uuid // empty' "$relay_replace_file")
+    relay_inbound_password=$(jq -r '.inbounds[0].users[0].password // .inbounds[0].password // empty' "$relay_replace_file")
+    relay_inbound_method=$(jq -r '.inbounds[0].method // empty' "$relay_replace_file")
+    relay_inbound_socks_user=$(jq -r '.inbounds[0].users[0].username // empty' "$relay_replace_file")
+    relay_outbound_json=$(jq -c '.outbounds[0]' "$relay_replace_file") || err "无法读取链式转发出站配置."
+    [[ $relay_inbound_host ]] && relay_uses_caddy_tls=1
+    return 0
+}
+
+relay_reset_change_state() {
     relay_replace_file=
     relay_allow_used_port=
+    relay_outbound_json=
+    relay_inbound_json=
+    relay_inbound_path=
+    relay_inbound_method=
+    relay_inbound_socks_user=
+    relay_uses_caddy_tls=
+    relay_update_caddy_tls=
 }
 
 relay_delete_chain_config() {
