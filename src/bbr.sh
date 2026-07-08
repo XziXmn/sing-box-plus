@@ -14,6 +14,14 @@ _modprobe_tcp_bbr() {
 	return 1
 }
 
+_modinfo_tcp_bbr() {
+	local modinfo_bin
+	for modinfo_bin in "$(type -P modinfo)" /usr/sbin/modinfo /sbin/modinfo /bin/modinfo; do
+		[[ -x "$modinfo_bin" ]] && "$modinfo_bin" tcp_bbr 2>/dev/null && return
+	done
+	return 1
+}
+
 _bbr_read_sysctl() {
 	local bbr_key=$1
 	local bbr_proc="/proc/sys/${bbr_key//./\/}"
@@ -108,17 +116,43 @@ _try_enable_bbr() {
 	_open_bbr || err "启用 BBR 优化失败: ${bbr_error:-未知原因}"
 }
 
+_bbr_version_label() {
+	local bbr_module bbr_current bbr_available bbr_kernel
+	bbr_module=$(_modinfo_tcp_bbr | awk '/^version:/ {print $2; exit}')
+	bbr_kernel=$(uname -r | tr '[:upper:]' '[:lower:]')
+	if [[ "$bbr_module" == 3* || "$bbr_kernel" == *bbrv3* || "$bbr_kernel" == *bbr3* ]]; then
+		echo "BBRv3"
+		return
+	fi
+	if [[ "$bbr_module" == 2* || "$bbr_kernel" == *bbrv2* || "$bbr_kernel" == *bbr2* || "$bbr_kernel" == *v2alpha* ]]; then
+		echo "BBRv2"
+		return
+	fi
+	if [[ "$bbr_module" == 1* ]]; then
+		echo "BBRv1"
+		return
+	fi
+	bbr_current=$(_bbr_read_sysctl net.ipv4.tcp_congestion_control 2>/dev/null)
+	bbr_available=$(_bbr_read_sysctl net.ipv4.tcp_available_congestion_control 2>/dev/null)
+	if [[ "$bbr_current" == "bbr" || " $bbr_available " == *" bbr "* ]]; then
+		echo "BBRv1"
+	else
+		echo "未知"
+	fi
+}
+
 _bbr_show_status() {
 	local bbr_current bbr_available qdisc bbr_module
 	bbr_current=$(_bbr_read_sysctl net.ipv4.tcp_congestion_control 2>/dev/null || echo unknown)
 	bbr_available=$(_bbr_read_sysctl net.ipv4.tcp_available_congestion_control 2>/dev/null || echo unknown)
 	qdisc=$(_bbr_read_sysctl net.core.default_qdisc 2>/dev/null || echo unknown)
-	bbr_module=$(modinfo tcp_bbr 2>/dev/null | awk '/^version:/ {print $2}')
+	bbr_module=$(_modinfo_tcp_bbr | awk '/^version:/ {print $2; exit}')
 
 	msg "\n当前内核: $(uname -r)"
 	msg "当前拥塞控制: $bbr_current"
 	msg "可用拥塞控制: $bbr_available"
 	msg "默认队列算法: $qdisc"
+	msg "BBR 类型: $(_bbr_version_label)"
 	msg "tcp_bbr 模块版本: ${bbr_module:-未知或未提供 version}"
 }
 
@@ -189,15 +223,15 @@ _bbr_status() {
 	if [[ "$bbr_current" == "bbr" ]]; then
 		is_bbr_enabled=1
 		is_bbr_available=1
-		is_bbr_status=$(_green enabled)
+		is_bbr_status=$(_green "已启用 ($(_bbr_version_label))")
 	elif _bbr_available; then
 		is_bbr_enabled=
 		is_bbr_available=1
-		is_bbr_status=$(_red_bg disabled)
+		is_bbr_status=$(_red_bg "未启用")
 	else
 		is_bbr_enabled=
 		is_bbr_available=
-		is_bbr_status=$(_red_bg unavailable)
+		is_bbr_status=$(_red_bg "不可用")
 	fi
 }
 
