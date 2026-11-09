@@ -198,9 +198,17 @@ download() {
 
     [[ $link ]] && {
         msg warn "下载 ${name} > ${link}"
-        if _wget -t 3 -nv -c $link -O $tmpfile; then
-            mv -f $tmpfile $is_ok
-        fi
+        local n
+        for n in 1 2 3 4 5; do
+            if _wget -t 3 -nv -c $link -O $tmpfile; then
+                mv -f $tmpfile $is_ok
+                return
+            fi
+            [[ $n != 5 ]] && {
+                msg warn "下载 ${name} 失败, $((n * 3)) 秒后重试..."
+                sleep $((n * 3))
+            }
+        done
     }
 }
 
