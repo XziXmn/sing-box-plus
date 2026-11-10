@@ -89,6 +89,7 @@ change_list=(
     "更改 SNI (serverName)"
     "更改伪装网站"
     "更改用户名 (Username)"
+    "更改传输模式"
 )
 servername_list=(
     www.amazon.com
@@ -479,6 +480,9 @@ change() {
         web | proxy-site)
             is_change_id=11
             ;;
+        tp | transport)
+            is_change_id=13
+            ;;
         *)
             [[ $is_try_change ]] && return
             err "无法识别 ($2) 更改类型."
@@ -680,6 +684,16 @@ change() {
         ask string is_socks_user "请输入新用户名 (Username):"
         add $net
         ;;
+    13)
+        # new mieru transport
+        [[ $net != 'mieru' ]] && err "($is_config_file) 不支持更改传输模式."
+        is_new_transport=$3
+        [[ ! $is_new_transport ]] && ask string is_new_transport "请输入传输模式 (TCP 或 UDP):"
+        is_new_transport=${is_new_transport^^}
+        [[ $is_new_transport != TCP && $is_new_transport != UDP ]] && err "传输模式只能是 TCP 或 UDP."
+        is_mieru_transport=$is_new_transport
+        add $net
+        ;;
     esac
 }
 
@@ -873,6 +887,11 @@ add() {
 
     if [[ ${is_new_protocol,,} == 'mieru' ]]; then
         [[ $(cat $is_core_dir/bin/core-flavor 2>/dev/null) == mbox ]] || err "Mieru 需要 mbox 核心, 请先执行: $(_green "$is_core update core") 切换到 mbox."
+        [[ ! $is_mieru_transport ]] && {
+            echo -ne "传输模式 (TCP/UDP), 回车默认 TCP:"
+            read -r is_mieru_transport
+            [[ ${is_mieru_transport^^} == UDP ]] && is_mieru_transport=UDP || is_mieru_transport=TCP
+        }
     fi
 
     if [[ ${is_new_protocol,,} == 'anytls' ]]; then
@@ -1185,10 +1204,12 @@ get() {
                 is_anytls_domain=$(jq -r '(.inbounds[0].tls.certificate_provider.domain[0] // .inbounds[0].tls.acme.domain[0]) // empty' <<<$is_json_str 2>/dev/null)
             }
 
-            # extract mieru username
+            # extract mieru username and transport
             [[ $is_protocol == 'mieru' ]] && {
                 is_mieru_user=$(jq -r '.inbounds[0].users[0].name // empty' <<<$is_json_str 2>/dev/null)
                 [[ $is_mieru_user ]] || is_mieru_user=user
+                is_mieru_transport=$(jq -r '.inbounds[0].transport // empty' <<<$is_json_str 2>/dev/null)
+                [[ $is_mieru_transport == UDP ]] || is_mieru_transport=TCP
             }
 
             is_config_name=$is_config_file
@@ -1270,7 +1291,7 @@ get() {
             is_protocol=$net
             [[ ! $password ]] && password=$uuid
             is_users="users:[{name:\"user\",password:\"$password\"}]"
-            json_str="$is_users,transport:\"TCP\""
+            json_str="$is_users,transport:\"${is_mieru_transport:-TCP}\""
             ;;
         anytls*)
             net=anytls
@@ -1529,15 +1550,16 @@ info() {
         fi
         ;;
     mieru)
-        is_can_change=(0 1 4)
+        is_can_change=(0 1 4 13)
         [[ $is_mieru_user ]] || is_mieru_user=user
+        [[ $is_mieru_transport ]] || is_mieru_transport=TCP
         is_info_show=(0 1 2 19 10 4)
-        is_info_str=($is_protocol $is_addr $port $is_mieru_user $password tcp)
-        # mierus:// 简单分享链接: 用户名:密码@服务器?profile=节点名&port=端口&protocol=TCP
+        is_info_str=($is_protocol $is_addr $port $is_mieru_user $password ${is_mieru_transport,,})
+        # mierus:// 简单分享链接: 用户名:密码@服务器?profile=节点名&port=端口&protocol=传输模式
         is_mieru_u=$(jq -rn --arg v "$is_mieru_user" '$v|@uri')
         is_mieru_p=$(jq -rn --arg v "$password" '$v|@uri')
         is_mieru_n=$(jq -rn --arg v "$is_config_name" '$v|@uri')
-        is_url="mierus://$is_mieru_u:$is_mieru_p@$is_addr?profile=$is_mieru_n&port=$port&protocol=TCP"
+        is_url="mierus://$is_mieru_u:$is_mieru_p@$is_addr?profile=$is_mieru_n&port=$port&protocol=$is_mieru_transport"
         ;;
     direct)
         is_can_change=(0 1 7 8)
@@ -1578,7 +1600,7 @@ info() {
             msg "    type: mieru"
             msg "    server: $is_addr"
             msg "    port: $port"
-            msg "    transport: TCP"
+            msg "    transport: $is_mieru_transport"
             msg "    username: $is_mieru_user"
             msg "    password: $password"
             warn "mieru 需 mihomo 系客户端或 mieru CLI, 官方 sing-box 客户端暂不支持"

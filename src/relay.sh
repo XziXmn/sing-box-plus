@@ -583,6 +583,11 @@ relay_load_chain_config() {
     relay_allow_used_port=$relay_listen_port
     relay_inbound_host=$(jq -r '.inbounds[0].transport|objects|.headers.host // empty' "$relay_replace_file")
     relay_inbound_path=$(jq -r '.inbounds[0].transport|objects|.path // empty' "$relay_replace_file")
+    # mieru 传输模式回读, 更改其他项时保持不变
+    [[ ${relay_inbound_protocol,,} == mieru ]] && {
+        is_mieru_transport=$(jq -r '.inbounds[0].transport // empty' "$relay_replace_file")
+        [[ $is_mieru_transport == UDP ]] || is_mieru_transport=TCP
+    }
     relay_inbound_uuid=$(jq -r '.inbounds[0].users[0].uuid // .inbounds[0].uuid // empty' "$relay_replace_file")
     relay_inbound_password=$(jq -r '.inbounds[0].users[0].password // .inbounds[0].password // empty' "$relay_replace_file")
     relay_inbound_method=$(jq -r '.inbounds[0].method // empty' "$relay_replace_file")
