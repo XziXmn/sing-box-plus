@@ -1661,6 +1661,15 @@ update() {
         err "无法识别 ($1), 请使用: $is_core update [core | sh | caddy] [ver]"
         ;;
     esac
+    # beta 脚本从 beta 分支源码更新, 不比较 release 版本
+    if [[ $is_update_name == sh && ! $2 && $is_sh_ver == *beta* ]]; then
+        load download.sh
+        msg "\n更新 $is_show_name 到 beta 分支最新源码...\n"
+        download sh beta
+        msg "更新成功, beta 分支最新源码已就位, 下次运行 $is_core 生效.\n"
+        exit
+    fi
+
     if [[ $2 == beta ]]; then
         [[ $is_update_name != core ]] && err "只有 $is_core_name 支持安装测试版."
         load download.sh

@@ -51,9 +51,16 @@ download() {
     sh)
         name="$is_core_name 脚本"
         tmpfile=$tmpdir/sh.tar.gz
-        link="https://github.com/${is_sh_repo}/releases/download/${latest_ver}/code.tar.gz"
-        download_file
-        tar zxf $tmpfile -C $is_sh_dir
+        if [[ $latest_ver == beta ]]; then
+            # beta 分支源码压缩包, 带顶层目录需剥离
+            link="https://github.com/${is_sh_repo}/archive/refs/heads/beta.tar.gz"
+            download_file
+            tar zxf $tmpfile --strip-components 1 -C $is_sh_dir
+        else
+            link="https://github.com/${is_sh_repo}/releases/download/${latest_ver}/code.tar.gz"
+            download_file
+            tar zxf $tmpfile -C $is_sh_dir
+        fi
         chmod +x $is_sh_bin ${is_sh_bin/$is_core/sb}
         ;;
     caddy)
