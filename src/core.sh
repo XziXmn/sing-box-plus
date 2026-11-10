@@ -1158,7 +1158,7 @@ get() {
         get file $2
         if [[ $is_config_file ]]; then
             is_json_str=$(cat $is_conf_dir/"$is_config_file" | sed s#//.*##)
-            is_json_data=$(jq '(.inbounds[0]|.type,.listen_port,(.users[0]|.uuid,.password,.username),.method,.password,.override_port,.override_address,(.transport|.type,.path,.headers.host),(.tls|.server_name,.reality.private_key)),(.outbounds[1].tag)' <<<$is_json_str)
+            is_json_data=$(jq '(.inbounds[0]|.type,.listen_port,(.users[0]|.uuid,.password,.username),.method,.password,.override_port,.override_address,(.transport|if type == "object" then (.type,.path,.headers.host) else (null,null,null) end),(.tls|.server_name,.reality.private_key)),(.outbounds[1].tag)' <<<$is_json_str)
             [[ $? != 0 ]] && err "无法读取此文件: $is_config_file"
             is_up_var_set=(null is_protocol port uuid password username ss_method ss_password door_port door_addr net_type path host is_servername is_private_key is_public_key)
             [[ $is_debug ]] && msg && section_title "debug: $is_config_file"
@@ -1662,7 +1662,8 @@ update() {
         ;;
     esac
     # beta 脚本从 beta 分支源码更新, 不比较 release 版本
-    if [[ $is_update_name == sh && ! $2 && $is_sh_ver == *beta* ]]; then
+    # 兼容早期 beta 安装: 版本号无 beta 字样但核心为 mbox 时同样走分支更新
+    if [[ $is_update_name == sh && ! $2 && ( $is_sh_ver == *beta* || $(cat $is_core_dir/bin/core-flavor 2>/dev/null) == mbox ) ]]; then
         load download.sh
         msg "\n更新 $is_show_name 到 beta 分支最新源码...\n"
         download sh beta
