@@ -12,6 +12,9 @@ sing-box-plus 是个人修改版本，用于 sing-box 一键安装、管理与�
 - 自动展示当前链式转发配置和已有普通节点
 - 链式转发支持按字段修改入站协议、端口、域名、密码、UUID、加密方式、用户名和出站链接
 - 主菜单新增 `BBR配置`，支持系统 BBR、BBRv3 脚本入口和亚太 TCP 调优入口
+- 全新安装默认创建 AnyTLS 节点
+- 支持安装 sing-box 测试版核心：`sing-box update core beta`，随时可切回稳定版
+- 支持配置导出/导入，base64 文本即可在多台服务器之间迁移
 
 ## 基础能力
 
@@ -25,11 +28,11 @@ sing-box-plus 是个人修改版本，用于 sing-box 一键安装、管理与�
 - 支持链式转发管理
 - 支持 `sbb` 快捷入口
 - 支持所有常用协议
-- 一键添加 VLESS-REALITY (默认)
+- 一键添加 VLESS-REALITY
 - 一键添加 TUIC
 - 一键添加 Trojan
 - 一键添加 Hysteria2
-- 一键添加 AnyTLS
+- 一键添加 AnyTLS (默认)
 - 一键添加 Shadowsocks 2022
 - 一键添加 VMess-(TCP/HTTP/QUIC)
 - 一键添加 VMess-(WS/H2/HTTPUpgrade)-TLS
@@ -91,6 +94,28 @@ git clone https://github.com/XziXmn/sing-box-plus.git
 cd sing-box-plus
 bash install.sh --local-install
 ```
+
+## 安装测试版核心
+
+已安装 sing-box-plus 后，可以一键切换 sing-box 测试版 (prerelease) 核心：
+
+```bash
+sing-box update core beta
+```
+
+切回最新稳定版：
+
+```bash
+sing-box update core
+```
+
+也可以指定任意版本：
+
+```bash
+sing-box update core v1.15.0-alpha.13
+```
+
+测试版核心来自 SagerNet/sing-box 的 prerelease 发布，稳定性不作保证；遇到问题可用 `sing-box update core` 随时切回稳定版。
 
 安装完成后会创建以下命令：
 
@@ -218,6 +243,7 @@ sing-box qr <name>        # 查看二维码
 sing-box status           # 查看运行状态
 sing-box restart          # 重启 sing-box
 sing-box update.sh        # 更新脚本
+sing-box update core beta # 安装 sing-box 测试版核心
 sing-box export           # 导出配置 base64 文本到 /root
 sing-box import-export <text|file> # 导入导出的 base64 配置文本
 sing-box uninstall        # 卸载脚本
@@ -295,7 +321,7 @@ Usage: sing-box [options]... [args]...
    relay                                           链式转发管理
    sbb                                             链式转发管理
    un, uninstall                                   卸载
-   u, update [core | sh | caddy] [ver]             更新
+   u, update [core | sh | caddy] [ver | beta]      更新, core 支持 beta 安装测试版
    U, update.sh                                    更新脚本
    s, status                                       运行状态
    start, stop, restart [caddy]                    启动, 停止, 重启

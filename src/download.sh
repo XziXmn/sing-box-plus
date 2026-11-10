@@ -2,22 +2,27 @@ get_latest_version() {
     case $1 in
     core)
         name=$is_core_name
-        url="https://api.github.com/repos/${is_core_repo}/releases/latest?v=$RANDOM"
+        repo=$is_core_repo
         ;;
     sh)
         name="$is_core_name 脚本"
-        url="https://api.github.com/repos/$is_sh_repo/releases/latest?v=$RANDOM"
+        repo=$is_sh_repo
         ;;
     caddy)
         name="Caddy"
-        url="https://api.github.com/repos/$is_caddy_repo/releases/latest?v=$RANDOM"
+        repo=$is_caddy_repo
         ;;
     esac
-    latest_ver=$(_wget -qO- $url | grep tag_name | grep -E -o 'v([0-9.]+)')
+    if [[ $2 == beta && $1 == core ]]; then
+        # 取最新的 prerelease 版本, e.g., v1.15.0-alpha.13
+        latest_ver=$(_wget -qO- "https://api.github.com/repos/$repo/releases?per_page=10?v=$RANDOM" | jq -r '[.[] | select(.prerelease)][0].tag_name // empty')
+    else
+        latest_ver=$(_wget -qO- "https://api.github.com/repos/$repo/releases/latest?v=$RANDOM" | grep tag_name | grep -E -o 'v([0-9.]+)')
+    fi
     [[ ! $latest_ver ]] && {
         err "获取 ${name} 最新版本失败."
     }
-    unset name url
+    unset name repo
 }
 download() {
     latest_ver=$2

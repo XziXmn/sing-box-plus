@@ -54,7 +54,7 @@ show_help() {
             "   relay                                           链式转发管理"
             "   sbb                                             链式转发管理"
             "   un, uninstall                                   卸载"
-            "   u, update [core | sh | caddy] [ver]             更新"
+            "   u, update [core | sh | caddy] [ver | beta]      更新, core 支持 beta 安装测试版"
             "   U, update.sh                                    更新脚本"
             "   s, status                                       运行状态"
             "   start, stop, restart [caddy]                    启动, 停止, 重启"

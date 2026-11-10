@@ -1615,14 +1615,23 @@ update() {
         err "无法识别 ($1), 请使用: $is_core update [core | sh | caddy] [ver]"
         ;;
     esac
-    [[ $2 ]] && is_new_ver=v${2#v}
+    if [[ $2 == beta ]]; then
+        [[ $is_update_name != core ]] && err "只有 $is_core_name 支持安装测试版."
+        load download.sh
+        get_latest_version core beta
+        is_new_ver=$latest_ver
+        is_ver_beta=1
+        unset latest_ver
+    else
+        [[ $2 ]] && is_new_ver=v${2#v}
+    fi
     [[ $is_run_ver == $is_new_ver ]] && {
-        msg "\n自定义版本和当前 $is_show_name 版本一样, 无需更新.\n"
+        msg "\n所选版本和当前 $is_show_name 版本一样, 无需更新.\n"
         exit
     }
     load download.sh
     if [[ $is_new_ver ]]; then
-        msg "\n使用自定义版本更新 $is_show_name: $(_green $is_new_ver)\n"
+        [[ $is_ver_beta ]] && msg "\n使用测试版更新 $is_show_name: $(_green $is_new_ver)\n" || msg "\n使用自定义版本更新 $is_show_name: $(_green $is_new_ver)\n"
     else
         get_latest_version $is_update_name
         [[ $is_run_ver == $latest_ver ]] && {
