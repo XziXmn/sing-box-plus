@@ -42,7 +42,7 @@ relay_show_configs() {
         relay_name=$(basename "$relay_file")
         relay_type=$(jq -r '.inbounds[0].type // "unknown"' "$relay_file" 2>/dev/null)
         relay_port=$(jq -r '.inbounds[0].listen_port // "unknown"' "$relay_file" 2>/dev/null)
-        relay_host=$(jq -r '.inbounds[0].transport.headers.host // empty' "$relay_file" 2>/dev/null)
+        relay_host=$(jq -r '.inbounds[0].transport|objects|.headers.host // empty' "$relay_file" 2>/dev/null)
         relay_target_type=$(jq -r '.outbounds[0].type // "unknown"' "$relay_file" 2>/dev/null)
         relay_target=$(jq -r '.outbounds[0].server // "unknown"' "$relay_file" 2>/dev/null)
         relay_target_port=$(jq -r '.outbounds[0].server_port // "unknown"' "$relay_file" 2>/dev/null)
@@ -95,13 +95,13 @@ relay_is_recommended_protocol() {
 relay_tls_host_used() {
     [[ ! $relay_inbound_host ]] && return 1
     if [[ -f "$is_caddy_conf/$relay_inbound_host.conf" ]]; then
-        relay_replace_host=$(jq -r '.inbounds[0].transport.headers.host // empty' "$relay_replace_file" 2>/dev/null)
+        relay_replace_host=$(jq -r '.inbounds[0].transport|objects|.headers.host // empty' "$relay_replace_file" 2>/dev/null)
         [[ "$relay_replace_host" == "$relay_inbound_host" ]] || return 0
     fi
     for relay_file in "$is_conf_dir"/*.json; do
         [[ -f "$relay_file" ]] || continue
         [[ "$relay_file" == "$relay_replace_file" ]] && continue
-        relay_existing_host=$(jq -r '.inbounds[0].transport.headers.host // empty' "$relay_file" 2>/dev/null)
+        relay_existing_host=$(jq -r '.inbounds[0].transport|objects|.headers.host // empty' "$relay_file" 2>/dev/null)
         [[ "$relay_existing_host" == "$relay_inbound_host" ]] && return 0
     done
     return 1
@@ -430,7 +430,7 @@ relay_write_chain_config() {
 
     if [[ $relay_replace_file ]]; then
         relay_backup_file="$relay_replace_file.bak.$$"
-        relay_old_caddy_host=$(jq -r '.inbounds[0].transport.headers.host // empty' "$relay_replace_file" 2>/dev/null)
+        relay_old_caddy_host=$(jq -r '.inbounds[0].transport|objects|.headers.host // empty' "$relay_replace_file" 2>/dev/null)
         cp -f "$relay_replace_file" "$relay_backup_file" || {
             rm -f "$relay_tmp_file"
             err "备份链式转发配置失败."
@@ -581,8 +581,8 @@ relay_load_chain_config() {
     relay_protocol_from_slug "$relay_protocol_slug"
     relay_listen_port=$(jq -r '.inbounds[0].listen_port // empty' "$relay_replace_file")
     relay_allow_used_port=$relay_listen_port
-    relay_inbound_host=$(jq -r '.inbounds[0].transport.headers.host // empty' "$relay_replace_file")
-    relay_inbound_path=$(jq -r '.inbounds[0].transport.path // empty' "$relay_replace_file")
+    relay_inbound_host=$(jq -r '.inbounds[0].transport|objects|.headers.host // empty' "$relay_replace_file")
+    relay_inbound_path=$(jq -r '.inbounds[0].transport|objects|.path // empty' "$relay_replace_file")
     relay_inbound_uuid=$(jq -r '.inbounds[0].users[0].uuid // .inbounds[0].uuid // empty' "$relay_replace_file")
     relay_inbound_password=$(jq -r '.inbounds[0].users[0].password // .inbounds[0].password // empty' "$relay_replace_file")
     relay_inbound_method=$(jq -r '.inbounds[0].method // empty' "$relay_replace_file")
