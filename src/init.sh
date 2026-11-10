@@ -78,7 +78,8 @@ is_core=sing-box
 is_core_name=sing-box
 is_core_dir=/etc/$is_core
 is_core_bin=$is_core_dir/bin/$is_core
-is_core_repo=SagerNet/$is_core
+# beta: mbox 核心 (支持 mieru 协议)
+is_core_repo=enfein/mbox
 is_conf_dir=$is_core_dir/conf
 is_log_dir=/var/log/$is_core
 is_sh_bin=/usr/local/bin/$is_core

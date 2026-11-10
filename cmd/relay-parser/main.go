@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -343,6 +344,23 @@ func httpOutbound(node map[string]any) (map[string]any, error) {
 	return outbound, nil
 }
 
+func mieruOutbound(node map[string]any) (map[string]any, error) {
+	outbound, err := baseOutbound(node, "mieru")
+	if err != nil {
+		return nil, err
+	}
+	if username := stringValue(node, "username"); username != "" {
+		outbound["username"] = username
+	}
+	if password := stringValue(node, "password"); password != "" {
+		outbound["password"] = password
+	}
+	if strings.EqualFold(stringValue(node, "network"), "udp") {
+		outbound["transport"] = "UDP"
+	}
+	return outbound, nil
+}
+
 func outboundFromNode(node map[string]any) (map[string]any, error) {
 	switch strings.ToLower(stringValue(node, "type")) {
 	case "vless":
@@ -361,6 +379,8 @@ func outboundFromNode(node map[string]any) (map[string]any, error) {
 		return tuicOutbound(node)
 	case "anytls":
 		return anyTLSOutbound(node)
+	case "mieru":
+		return mieruOutbound(node)
 	case "socks", "socks5":
 		return socksOutbound(node)
 	case "http", "naive":
@@ -370,13 +390,42 @@ func outboundFromNode(node map[string]any) (map[string]any, error) {
 	}
 }
 
+// parseMieruLink parses mieru://host:port?username=x&password=y&network=tcp#name
+// links, which the proxyparser library does not support.
+func parseMieruLink(link string) (map[string]any, error) {
+	u, err := url.Parse(link)
+	if err != nil {
+		return nil, err
+	}
+	if u.Hostname() == "" || u.Port() == "" {
+		return nil, fmt.Errorf("mieru target missing server or port")
+	}
+	return map[string]any{
+		"type":     "mieru",
+		"server":   u.Hostname(),
+		"port":     u.Port(),
+		"username": u.Query().Get("username"),
+		"password": u.Query().Get("password"),
+		"network":  u.Query().Get("network"),
+	}, nil
+}
+
 func main() {
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "usage: relay-parser '<proxy-url>'")
 		os.Exit(2)
 	}
 
-	node, err := proxyparser.Parse(os.Args[1])
+	rawURL := os.Args[1]
+	var (
+		node map[string]any
+		err  error
+	)
+	if strings.HasPrefix(strings.ToLower(rawURL), "mieru://") {
+		node, err = parseMieruLink(rawURL)
+	} else {
+		node, err = proxyparser.Parse(rawURL)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

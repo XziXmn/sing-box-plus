@@ -21,6 +21,7 @@ protocol_list=(
     VLESS-REALITY
     VLESS-HTTP2-REALITY
     AnyTLS
+    Mieru
     # Direct
     Socks
 )
@@ -851,6 +852,9 @@ add() {
         anytls)
             is_new_protocol=AnyTLS
             ;;
+        m | mieru)
+            is_new_protocol=Mieru
+            ;;
         socks)
             is_new_protocol=Socks
             ;;
@@ -866,6 +870,10 @@ add() {
 
     # no prefer protocol
     [[ ! $is_new_protocol ]] && ask set_protocol
+
+    if [[ ${is_new_protocol,,} == 'mieru' ]]; then
+        [[ $(cat $is_core_dir/bin/core-flavor 2>/dev/null) == mbox ]] || err "Mieru 需要 mbox 核心, 请先执行: $(_green "$is_core update core") 切换到 mbox."
+    fi
 
     if [[ ${is_new_protocol,,} == 'anytls' ]]; then
         is_core_check_ver=$($is_core_bin version 2>/dev/null | head -n1 | cut -d " " -f3)
@@ -1177,6 +1185,12 @@ get() {
                 is_anytls_domain=$(jq -r '(.inbounds[0].tls.certificate_provider.domain[0] // .inbounds[0].tls.acme.domain[0]) // empty' <<<$is_json_str 2>/dev/null)
             }
 
+            # extract mieru username
+            [[ $is_protocol == 'mieru' ]] && {
+                is_mieru_user=$(jq -r '.inbounds[0].users[0].name // empty' <<<$is_json_str 2>/dev/null)
+                [[ $is_mieru_user ]] || is_mieru_user=user
+            }
+
             is_config_name=$is_config_file
 
             if [[ $is_caddy && $host && -f $is_caddy_conf/$host.conf ]]; then
@@ -1250,6 +1264,13 @@ get() {
             net=direct
             is_protocol=$net
             json_str="override_port:$door_port,override_address:\"$door_addr\""
+            ;;
+        mieru*)
+            net=mieru
+            is_protocol=$net
+            [[ ! $password ]] && password=$uuid
+            is_users="users:[{name:\"user\",password:\"$password\"}]"
+            json_str="$is_users,transport:\"TCP\""
             ;;
         anytls*)
             net=anytls
@@ -1507,6 +1528,13 @@ info() {
             is_url="anytls://$password@$is_addr:$port?insecure=1&allowInsecure=1#sing-box-plus-$net-$is_addr"
         fi
         ;;
+    mieru)
+        is_can_change=(0 1 4)
+        [[ $is_mieru_user ]] || is_mieru_user=user
+        is_info_show=(0 1 2 19 10 4)
+        is_info_str=($is_protocol $is_addr $port $is_mieru_user $password tcp)
+        is_url="mieru://$is_addr:$port?username=$is_mieru_user&password=$password&network=tcp#sing-box-plus-$net-$is_addr"
+        ;;
     direct)
         is_can_change=(0 1 7 8)
         is_info_show=(0 1 2 13 14)
@@ -1538,6 +1566,18 @@ info() {
         msg "\e[4;${is_color}m${is_url}\e[0m"
         [[ $is_insecure ]] && {
             warn "某些客户端如(V2rayN 等)导入URL需手动将: 跳过证书验证(allowInsecure) 设置为 true, 或打开: 允许不安全的连接"
+        }
+        [[ $net == mieru ]] && {
+            section_title "mihomo 配置 (复制到 Clash Verge Rev / Mihomo Party 等客户端)"
+            msg "proxies:"
+            msg "  - name: $is_config_name"
+            msg "    type: mieru"
+            msg "    server: $is_addr"
+            msg "    port: $port"
+            msg "    transport: TCP"
+            msg "    username: $is_mieru_user"
+            msg "    password: $password"
+            warn "mieru 需 mihomo 系客户端或 mieru CLI, 官方 sing-box 客户端暂不支持"
         }
     fi
     if [[ $is_no_auto_tls ]]; then

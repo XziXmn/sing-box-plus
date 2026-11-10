@@ -15,6 +15,8 @@ sing-box-plus 是个人修改版本，用于 sing-box 一键安装、管理与�
 - 全新安装默认创建 AnyTLS 节点
 - 支持安装 sing-box 测试版核心：`sing-box update core beta`，随时可切回稳定版
 - 支持配置导出/导入，base64 文本即可在多台服务器之间迁移
+- 支持 mieru 协议（beta 分支）：核心切换为 enfein/mbox，添加配置时选择 `Mieru` 即可
+- mieru 需 mihomo 系客户端（Clash Verge Rev / Mihomo Party / CMFA）或 mieru CLI，官方 sing-box 客户端暂不支持
 
 ## 基础能力
 
@@ -86,6 +88,8 @@ bash install-beta.sh
 ```
 
 `beta` 分支包含仓库全部源码，不内置 `relay-parser` 预编译文件，安装或首次使用链式转发时会自动下载对应架构的独立 `relay-parser`。
+
+`beta` 分支的核心下载源为 `enfein/mbox`（sing-box 分支，支持 mieru 协议），`sb update core` 会跟随 mbox 仓库更新；主分支仍使用官方 `SagerNet/sing-box` 核心。
 
 也可以克隆仓库后使用本地安装：
 

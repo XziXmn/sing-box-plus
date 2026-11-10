@@ -65,7 +65,8 @@ is_core=sing-box
 is_core_name=sing-box
 is_core_dir=/etc/$is_core
 is_core_bin=$is_core_dir/bin/$is_core
-is_core_repo=SagerNet/$is_core
+# beta: mbox 核心 (支持 mieru 协议)
+is_core_repo=enfein/mbox
 is_conf_dir=$is_core_dir/conf
 is_log_dir=/var/log/$is_core
 is_sh_bin=/usr/local/bin/$is_core
@@ -637,6 +638,11 @@ main() {
 
     # refresh core version after install new core
     is_core_ver=$($is_core_bin version 2>/dev/null | head -n1 | cut -d " " -f3)
+
+    # write core flavor marker
+    is_core_flavor=official
+    [[ $is_core_repo == *mbox* ]] && is_core_flavor=mbox
+    echo $is_core_flavor >$is_core_dir/bin/core-flavor
 
     # add alias
     echo "alias sb=$is_sh_bin" >>/root/.bashrc

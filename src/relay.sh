@@ -85,7 +85,7 @@ relay_add_chain_menu() {
 
 relay_is_recommended_protocol() {
     case "$1" in
-    VLESS-REALITY | Hysteria2 | TUIC | Shadowsocks | Trojan | AnyTLS)
+    VLESS-REALITY | Hysteria2 | TUIC | Shadowsocks | Trojan | AnyTLS | Mieru)
         return 0
         ;;
     esac
@@ -146,7 +146,7 @@ relay_collect_chain_config() {
 
 relay_select_inbound_protocol() {
     relay_inbound_protocols=()
-    relay_recommended_protocols=(VLESS-REALITY Hysteria2 TUIC Shadowsocks Trojan AnyTLS)
+    relay_recommended_protocols=(VLESS-REALITY Hysteria2 TUIC Shadowsocks Trojan AnyTLS Mieru)
 
     msg "\n请选择入站协议"
     for relay_protocol in "${relay_recommended_protocols[@]}"; do
@@ -317,7 +317,7 @@ relay_build_inbound_json() {
     *reality*)
         add "$relay_inbound_protocol" "$port" "$uuid"
         ;;
-    trojan* | hysteria2* | anytls*)
+    trojan* | hysteria2* | anytls* | mieru*)
         add "$relay_inbound_protocol" "$port" "$password"
         ;;
     shadowsocks)

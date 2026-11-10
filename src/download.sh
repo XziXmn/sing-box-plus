@@ -16,6 +16,8 @@ get_latest_version() {
     if [[ $2 == beta && $1 == core ]]; then
         # 取最新的 prerelease 版本, e.g., v1.15.0-alpha.13
         latest_ver=$(_wget -qO- "https://api.github.com/repos/$repo/releases?per_page=10?v=$RANDOM" | jq -r '[.[] | select(.prerelease)][0].tag_name // empty')
+        # 仓库没有 prerelease 时回退最新稳定版
+        [[ ! $latest_ver ]] && latest_ver=$(_wget -qO- "https://api.github.com/repos/$repo/releases/latest?v=$RANDOM" | grep tag_name | grep -E -o 'v([0-9.]+)')
     else
         latest_ver=$(_wget -qO- "https://api.github.com/repos/$repo/releases/latest?v=$RANDOM" | grep tag_name | grep -E -o 'v([0-9.]+)')
     fi
@@ -41,6 +43,10 @@ download() {
         download_file
         tar zxf $tmpfile --strip-components 1 -C $is_core_dir/bin
         chmod +x $is_core_bin
+        # write core flavor marker
+        is_core_flavor=official
+        [[ $is_core_repo == *mbox* ]] && is_core_flavor=mbox
+        echo $is_core_flavor >$is_core_dir/bin/core-flavor
         ;;
     sh)
         name="$is_core_name 脚本"
