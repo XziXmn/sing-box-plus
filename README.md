@@ -76,16 +76,16 @@ bash install.sh
 
 发行版安装包会内置 `relay-parser` 预编译文件，不需要在服务器安装 Go。
 
-## 从脚本安装
+## 从测试分支安装
 
-直接下载 `main` 分支源码，可以体验最新特性：
+直接下载 `beta` 分支源码，体验尚未发版的最新改动；在测试分支验证过的功能会合并回 `main` 并发布 Release：
 
 ```bash
 wget -O install-beta.sh https://raw.githubusercontent.com/XziXmn/sing-box-plus/main/install-beta.sh
 bash install-beta.sh
 ```
 
-脚本安装包不内置 `relay-parser` 预编译文件，安装或首次使用链式转发时会自动下载对应架构的独立 `relay-parser`。
+`beta` 分支包含仓库全部源码，不内置 `relay-parser` 预编译文件，安装或首次使用链式转发时会自动下载对应架构的独立 `relay-parser`。
 
 也可以克隆仓库后使用本地安装：
 
