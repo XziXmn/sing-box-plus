@@ -674,8 +674,8 @@ main() {
         finish_install_ok
     fi
 
-    # create a reality config
-    add reality
+    # create a config
+    add AnyTLS
     # wait for background tasks (e.g., OpenRC service start)
     wait
     # remove tmp dir and exit.
