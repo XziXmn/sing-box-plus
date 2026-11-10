@@ -686,12 +686,13 @@ change() {
         ;;
     13)
         # new mieru transport
+        # 注意: ask 的变量名不能包含 port, 否则会被误当端口校验
         [[ $net != 'mieru' ]] && err "($is_config_file) 不支持更改传输模式."
-        is_new_transport=$3
-        [[ ! $is_new_transport ]] && ask string is_new_transport "请输入传输模式 (TCP 或 UDP):"
-        is_new_transport=${is_new_transport^^}
-        [[ $is_new_transport != TCP && $is_new_transport != UDP ]] && err "传输模式只能是 TCP 或 UDP."
-        is_mieru_transport=$is_new_transport
+        is_new_trans=$3
+        [[ ! $is_new_trans ]] && ask string is_new_trans "请输入传输模式 (TCP 或 UDP):"
+        is_new_trans=${is_new_trans^^}
+        [[ $is_new_trans != TCP && $is_new_trans != UDP ]] && err "传输模式只能是 TCP 或 UDP."
+        is_mieru_transport=$is_new_trans
         add $net
         ;;
     esac
