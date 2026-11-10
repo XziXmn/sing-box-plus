@@ -635,6 +635,9 @@ main() {
         tar zxf $is_core_ok --strip-components 1 -C $is_core_dir/bin
     fi
 
+    # refresh core version after install new core
+    is_core_ver=$($is_core_bin version 2>/dev/null | head -n1 | cut -d " " -f3)
+
     # add alias
     echo "alias sb=$is_sh_bin" >>/root/.bashrc
     echo "alias $is_core=$is_sh_bin" >>/root/.bashrc

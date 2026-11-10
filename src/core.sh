@@ -868,10 +868,12 @@ add() {
     [[ ! $is_new_protocol ]] && ask set_protocol
 
     if [[ ${is_new_protocol,,} == 'anytls' ]]; then
-        is_core_major=$(echo "$is_core_ver" | cut -d. -f1)
-        is_core_minor=$(echo "$is_core_ver" | cut -d. -f2)
+        is_core_check_ver=$($is_core_bin version 2>/dev/null | head -n1 | cut -d " " -f3)
+        [[ $is_core_check_ver ]] || is_core_check_ver=$is_core_ver
+        is_core_major=$(echo "$is_core_check_ver" | cut -d. -f1)
+        is_core_minor=$(echo "$is_core_check_ver" | cut -d. -f2)
         if [[ ${is_core_major:-0} -lt 1 || ${is_core_major:-0} -eq 1 && ${is_core_minor:-0} -lt 12 ]]; then
-            err "当前 sing-box 版本 ($is_core_ver) 不支持 AnyTLS，请先升级 sing-box core 到 1.12.0 或更高版本。"
+            err "当前 sing-box 版本 ($is_core_check_ver) 不支持 AnyTLS，请先升级 sing-box core 到 1.12.0 或更高版本。"
         fi
     fi
 
