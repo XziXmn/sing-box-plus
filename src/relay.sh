@@ -353,8 +353,61 @@ relay_build_inbound_json() {
     is_no_auto_tls=
 }
 
+relay_parse_mieru_target() {
+    # 官方简单分享链接: mierus://user:pass@host?profile=x&port=2999&protocol=TCP
+    # 纯 bash 解析, 不依赖 relay-parser 二进制 (release 版不含 mieru 支持)
+    local link=${relay_target_link#*://}
+    link=${link%%\#*}
+    local query=
+    [[ $link == *\?* ]] && {
+        query=${link#*\?}
+        link=${link%%\?*}
+    }
+    local host=$link user=user pass=
+    if [[ $link == *@* ]]; then
+        user=${link%%@*}
+        host=${link#*@}
+        if [[ $user == *:* ]]; then
+            pass=${user#*:}
+            user=${user%%:*}
+        fi
+    fi
+    local rest=$query pair key val port= proto=TCP
+    while [[ $rest ]]; do
+        pair=${rest%%&*}
+        [[ $pair == "$rest" ]] && rest= || rest=${rest#*&}
+        key=${pair%%=*}
+        val=
+        [[ $pair == *=* ]] && val=${pair#*=}
+        case $key in
+        port) port=$val ;;
+        protocol) proto=$val ;;
+        esac
+    done
+    [[ $host ]] || err "mieru 目标链接缺少服务器地址: $relay_target_link"
+    [[ $port =~ ^[0-9]+$ ]] || err "mieru 目标链接缺少有效端口: $relay_target_link"
+    [[ $pass ]] || err "mieru 目标链接缺少密码: $relay_target_link"
+    relay_outbound_json=$(jq -cn \
+        --arg server "$host" \
+        --argjson server_port "$port" \
+        --arg username "$user" \
+        --arg password "$pass" \
+        --arg transport "$( [[ ${proto,,} == udp ]] && echo UDP || echo TCP )" \
+        '{
+            type: "mieru",
+            server: $server,
+            server_port: $server_port
+        }
+        + (if $username != "" then {username: $username} else {} end)
+        + {password: $password}
+        + (if $transport == "UDP" then {transport: $transport} else {} end)') || err "mieru 目标链接解析失败."
+}
+
 relay_write_chain_config() {
     relay_ensure_parser
+    if [[ ! $relay_outbound_json && $relay_target_link == mierus://* ]]; then
+        relay_parse_mieru_target
+    fi
     [[ $relay_outbound_json ]] || relay_outbound_json=$("$relay_parser_bin" "$relay_target_link") || err "目标代理链接解析失败."
     [[ $relay_inbound_json ]] || relay_build_inbound_json
 
