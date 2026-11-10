@@ -1533,7 +1533,11 @@ info() {
         [[ $is_mieru_user ]] || is_mieru_user=user
         is_info_show=(0 1 2 19 10 4)
         is_info_str=($is_protocol $is_addr $port $is_mieru_user $password tcp)
-        is_url="mieru://$is_addr:$port?username=$is_mieru_user&password=$password&network=tcp#sing-box-plus-$net-$is_addr"
+        # mierus:// 简单分享链接: 用户名:密码@服务器?profile=节点名&port=端口&protocol=TCP
+        is_mieru_u=$(jq -rn --arg v "$is_mieru_user" '$v|@uri')
+        is_mieru_p=$(jq -rn --arg v "$password" '$v|@uri')
+        is_mieru_n=$(jq -rn --arg v "$is_config_name" '$v|@uri')
+        is_url="mierus://$is_mieru_u:$is_mieru_p@$is_addr?profile=$is_mieru_n&port=$port&protocol=TCP"
         ;;
     direct)
         is_can_change=(0 1 7 8)

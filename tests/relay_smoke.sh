@@ -44,7 +44,7 @@ jq -e '
   .down_mbps == 100
 ' <<<"$hysteria_outbound" >/dev/null
 
-mieru_sample='mieru://m.example.com:2999?username=user&password=m-pass&network=tcp#mieru'
+mieru_sample='mierus://user:m-pass@m.example.com?profile=mieru&port=2999&protocol=TCP'
 mieru_outbound=$(../../tmp-relay-parser "$mieru_sample")
 
 jq -e '

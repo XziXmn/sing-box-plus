@@ -390,8 +390,9 @@ func outboundFromNode(node map[string]any) (map[string]any, error) {
 	}
 }
 
-// parseMieruLink parses mieru://host:port?username=x&password=y&network=tcp#name
-// links, which the proxyparser library does not support.
+// parseMieruLink parses official simple share links:
+// mierus://username:password@host?profile=name&port=2999&protocol=TCP
+// (the proxyparser library does not support mieru links)
 func parseMieruLink(link string) (map[string]any, error) {
 	u, err := url.Parse(link)
 	if err != nil {
@@ -400,13 +401,28 @@ func parseMieruLink(link string) (map[string]any, error) {
 	if u.Hostname() == "" || u.Port() == "" {
 		return nil, fmt.Errorf("mieru target missing server or port")
 	}
+	var username, password string
+	if u.User != nil {
+		username = u.User.Username()
+		password, _ = u.User.Password()
+	}
+	if username == "" {
+		username = u.Query().Get("username")
+	}
+	if password == "" {
+		password = u.Query().Get("password")
+	}
+	protocol := u.Query().Get("protocol")
+	if protocol == "" {
+		protocol = "TCP"
+	}
 	return map[string]any{
 		"type":     "mieru",
 		"server":   u.Hostname(),
 		"port":     u.Port(),
-		"username": u.Query().Get("username"),
-		"password": u.Query().Get("password"),
-		"network":  u.Query().Get("network"),
+		"username": username,
+		"password": password,
+		"network":  protocol,
 	}, nil
 }
 
@@ -417,13 +433,17 @@ func main() {
 	}
 
 	rawURL := os.Args[1]
+	lowerURL := strings.ToLower(rawURL)
 	var (
 		node map[string]any
 		err  error
 	)
-	if strings.HasPrefix(strings.ToLower(rawURL), "mieru://") {
+	switch {
+	case strings.HasPrefix(lowerURL, "mierus://"):
 		node, err = parseMieruLink(rawURL)
-	} else {
+	case strings.HasPrefix(lowerURL, "mieru://"):
+		err = fmt.Errorf("官方 mieru:// 链接是 base64 编码的完整配置, 无法解析; 请使用 mierus:// 简单分享链接")
+	default:
 		node, err = proxyparser.Parse(rawURL)
 	}
 	if err != nil {
